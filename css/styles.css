@@ -1196,6 +1196,7 @@ button { font-family: inherit; color: inherit; }
   border-radius: 14px;
 }
 .flap {
+  --flap-rest: 0deg;
   position: absolute;
   inset: 10px;
   padding: 0;
@@ -1220,9 +1221,18 @@ button { font-family: inherit; color: inherit; }
 }
 .chev { width: calc(var(--push-font) * .55); height: calc(var(--push-font) * .55); flex: none; }
 .chev.flip { transform: scaleX(-1); }
-.flap:hover { transform: rotateX(16deg); }
-.flap.open { transform: rotateX(70deg); }
-.has-pins .flap { background: rgba(244, 238, 255, .55); animation: wiggle 1.4s ease-in-out infinite; }
+.flap:hover { --flap-rest: -8deg; transform: rotateX(var(--flap-rest)); }
+.has-pins .flap { background: rgba(244, 238, 255, .55); }
+.has-pins .flap:not(.open) { animation: wiggle 1.4s ease-in-out infinite; }
+.flap.open {
+  rotate: 0deg;
+  animation: flap-push-rebound var(--flap-duration, 1050ms) cubic-bezier(.37, 0, .63, 1) both;
+}
+@keyframes flap-push-rebound {
+  0%, 100% { transform: rotateX(var(--flap-rest)); }
+  22% { transform: rotateX(-40deg); }
+  55% { transform: rotateX(70deg); }
+}
 @keyframes wiggle { 0%, 100% { rotate: 0deg; } 20% { rotate: -1.5deg; } 40% { rotate: 1.5deg; } 60% { rotate: 0deg; } }
 .push-bubble {
   position: absolute;

@@ -764,24 +764,27 @@
   }
 
   function collect() {
+    if (el.flap.classList.contains('open')) return;
+    const duration = reduce ? 60 : 1050;
+    el.flap.style.setProperty('--flap-duration', `${duration}ms`);
+    el.flap.classList.add('open');
+    setTimeout(() => el.flap.classList.remove('open'), duration);
     if (!el.push.classList.contains('has-pins')) {
-      el.flap.classList.add('open');
-      setTimeout(() => el.flap.classList.remove('open'), 380);
       toast('Nothing here yet — pick some pins first ♡');
       sfx.key();
       return;
     }
     const ids = [...el.tray.querySelectorAll('.drop-pin')].map((_, i) => S.lastOrder.lines.flatMap((l) => Array(l.qty).fill(l.id))[i]);
-    el.flap.classList.add('open');
-    sfx.collect();
-    const r = el.flap.getBoundingClientRect();
-    burst(r.left + r.width / 2, r.top + r.height / 2, ids);
+    setTimeout(() => {
+      sfx.collect();
+      const r = el.flap.getBoundingClientRect();
+      burst(r.left + r.width / 2, r.top + r.height / 2, ids);
+    }, duration * .55);
     setTimeout(() => {
       el.tray.innerHTML = '';
       el.push.classList.remove('has-pins');
-      el.flap.classList.remove('open');
       el.flap.setAttribute('aria-label', 'Push the flap to collect your pins');
-    }, 700);
+    }, duration * .72);
     toast(`Enjoy your pins! ♡ Order #${S.lastOrder.orderId}`, 3200);
     track('pins_collected', { orderId: S.lastOrder.orderId });
   }
