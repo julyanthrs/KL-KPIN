@@ -9,7 +9,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='%23ffd3df' stroke='%232c2554' stroke-width='8'/%3E%3Ccircle cx='36' cy='46' r='6' fill='%232c2554'/%3E%3Ccircle cx='64' cy='46' r='6' fill='%232c2554'/%3E%3Cpath d='M42 60q8 8 16 0' stroke='%232c2554' stroke-width='6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Luckiest+Guy&family=Silkscreen&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Luckiest+Guy&family=Silkscreen&family=VT323&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body data-view="home">
@@ -22,19 +22,22 @@
         <div class="shell" aria-hidden="true"></div>
         <svg id="stripes" class="stripes" aria-hidden="true"></svg>
         <div class="divider" aria-hidden="true"></div>
+        <span class="screw face-screw fs-1" aria-hidden="true"></span>
+        <span class="screw face-screw fs-2" aria-hidden="true"></span>
 
         <!-- DISPLAY WINDOW -->
         <section id="window" class="window" aria-label="Pin display window">
           <div id="windowInner" class="window-inner">
             <div class="glass">
+              <div id="tabs" class="tabs" role="group" aria-label="Pin categories"></div>
               <div id="batchViewport" class="batch-viewport">
                 <div id="batchTrack" class="batch-track"></div>
               </div>
               <div class="shine" aria-hidden="true"></div>
               <div class="batch-bar">
-                <span id="batchLabel" class="batch-label"></span>
-                <div id="dots" class="dots"></div>
                 <span class="swipe-hint" aria-hidden="true">&lsaquo; swipe &rsaquo;</span>
+                <div id="dots" class="dots"></div>
+                <span id="batchLabel" class="batch-label"></span>
               </div>
             </div>
             <button id="prevBatch" class="batch-arrow prev" aria-label="Previous batch of pins">
@@ -49,24 +52,44 @@
           </button>
         </section>
 
-        <!-- STICKERS -->
-        <div class="sticker" data-shape="heart" aria-hidden="true" style="--lx:10px;--ly:236px;--px:4px;--py:300px;--s:60px;--r:-12deg"></div>
-        <div class="sticker" data-shape="diamond" aria-hidden="true" style="--lx:882px;--ly:52px;--px:620px;--py:80px;--s:70px;--r:14deg"></div>
-        <div class="sticker" data-shape="ring" aria-hidden="true" style="--lx:884px;--ly:322px;--px:624px;--py:420px;--s:54px;--r:0deg"></div>
-        <div class="sticker" data-shape="square" aria-hidden="true" style="--lx:318px;--ly:676px;--px:72px;--py:1058px;--s:62px;--r:16deg"></div>
-        <div class="sticker" data-shape="circle" aria-hidden="true" style="--lx:416px;--ly:736px;--px:176px;--py:1124px;--s:52px;--r:-6deg"></div>
-        <div class="sticker" data-shape="square2" aria-hidden="true" style="--lx:822px;--ly:1046px;--px:616px;--py:1424px;--s:50px;--r:-12deg"></div>
+        <!-- STICKERS (landscape position --lx/--ly, phone position --px/--py) -->
+        <div class="sticker" data-shape="star" aria-hidden="true" style="--lx:26px;--ly:44px;--px:24px;--py:1490px;--s:64px;--r:-8deg"></div>
+        <div class="sticker" data-shape="heart" aria-hidden="true" style="--lx:30px;--ly:270px;--px:100px;--py:1584px;--s:60px;--r:-12deg"></div>
+        <div class="sticker" data-shape="sparkle" aria-hidden="true" style="--lx:40px;--ly:480px;--px:36px;--py:1690px;--s:40px;--r:0deg"></div>
+        <div class="sticker" data-shape="rect" aria-hidden="true" style="--lx:1298px;--ly:120px;--px:682px;--py:130px;--s:66px;--r:28deg"></div>
+        <div class="sticker" data-shape="sparkle" aria-hidden="true" style="--lx:1318px;--ly:42px;--px:694px;--py:60px;--s:36px;--r:10deg"></div>
+        <div class="sticker" data-shape="flower" aria-hidden="true" style="--lx:1302px;--ly:540px;--px:684px;--py:820px;--s:64px;--r:10deg"></div>
+        <div class="sticker" data-shape="heart" aria-hidden="true" style="--lx:34px;--ly:848px;--px:8px;--py:440px;--s:54px;--r:14deg"></div>
+        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:470px;--ly:848px;--px:100px;--py:1730px;--s:62px;--r:-20deg"></div>
+        <div class="sticker" data-shape="rect" aria-hidden="true" style="--lx:700px;--ly:856px;--px:40px;--py:1800px;--s:56px;--r:-14deg"></div>
+        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:560px;--ly:1266px;--px:96px;--py:1892px;--s:54px;--r:-20deg"></div>
+        <div class="sticker" data-shape="star" aria-hidden="true" style="--lx:44px;--ly:1300px;--px:110px;--py:1428px;--s:58px;--r:10deg"></div>
 
-        <!-- KEYPAD + QR SCREEN + RECEIPT SLOT -->
-        <section id="panel" class="panel" aria-label="Keypad, QR screen and receipt printer">
-          <div class="keypad">
-            <div id="lcd" class="lcd" aria-hidden="true"><span id="lcdText">HELLO</span></div>
-            <div id="keys" class="keys" aria-hidden="true"></div>
-            <button id="receiptKey" class="receipt-key">RECEIPT <span id="rkCount"></span></button>
+        <!-- TOTAL · KEYPAD · QR · RECEIPT BUTTON · PRINTER -->
+        <section id="panel" class="panel" aria-label="Order total, keypad, QR screen and receipt printer">
+          <div id="lcd" class="total-display" aria-hidden="true">
+            <div class="td-screen">
+              <div class="td-row td-top">
+                <span id="lcdText" class="td-label">TOTAL</span>
+                <span id="lcdQty" class="td-qty">QTY 00</span>
+              </div>
+              <div class="td-row td-main">
+                <span class="td-cur">PHP</span>
+                <span id="lcdTotal" class="td-amt" data-ghost="888.88">0.00</span>
+              </div>
+            </div>
+            <span class="td-led" aria-hidden="true">♥</span>
+            <span class="td-tag" aria-hidden="true">♡ kl!kpin ♡</span>
           </div>
-          <div class="screen-col">
-            <div id="qrScreen" class="qr-screen"></div>
-            <div class="slot" aria-hidden="true"><span class="slot-mouth"></span><span class="slot-line"></span></div>
+          <div class="keypad"><div id="keys" class="keys" aria-hidden="true"></div></div>
+          <div id="qrScreen" class="qr-screen"></div>
+          <button id="receiptKey" class="receipt-key">
+            RECEIPT <span id="rkCount" class="rk-count"></span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21z" fill="#fff" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8h6M9 12h6M9 16h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <div class="printer" aria-hidden="true">
+            <span class="slot-mouth"></span>
+            <span class="paper-stub"><i></i><i></i><b>♡</b></span>
           </div>
           <div id="receiptWrap" class="receipt-wrap">
             <div id="receipt" class="receipt" role="region" aria-label="Receipt"></div>
@@ -80,16 +103,30 @@
 
         <!-- PUSH DOOR (where pins drop) -->
         <section id="pushDoor" class="push-door" aria-label="Pickup door">
-          <div id="tray" class="tray"></div>
-          <button id="flap" class="flap" aria-label="Push the flap to collect your pins"><span>PUSH</span></button>
+          <span class="screw tl" aria-hidden="true"></span><span class="screw tr" aria-hidden="true"></span>
+          <span class="screw bl" aria-hidden="true"></span><span class="screw br" aria-hidden="true"></span>
+          <div class="door-well">
+            <div id="tray" class="tray"></div>
+            <button id="flap" class="flap" aria-label="Push the flap to collect your pins">
+              <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l2 1M8 12h3M4 18l2-1" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+              <span class="push-word">PUSH</span>
+              <svg class="chev flip" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l2 1M8 12h3M4 18l2-1" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+            </button>
+          </div>
           <span class="push-bubble" aria-hidden="true">push to collect ♡</span>
         </section>
 
         <!-- SIDE PANEL -->
-        <aside class="side">
-          <div class="brand" aria-hidden="true">KL!KPIN</div>
-          <div class="lights" aria-hidden="true"><span></span><span></span></div>
-          <button id="coinSlot" class="coin-slot" aria-label="Coin slot"><span></span></button>
+        <aside class="side" aria-hidden="true">
+          <div class="side-card">
+            <span class="screw tl"></span><span class="screw tr"></span>
+            <span class="screw bl"></span><span class="screw br"></span>
+            <div class="brand">KL<span class="bang">!</span>KPIN</div>
+            <span class="spark sp-1"></span><span class="spark sp-2"></span><span class="spark sp-3"></span><span class="spark sp-4"></span>
+            <div class="lights"><span></span><span></span></div>
+            <div class="barcode"><span class="bars"></span><span class="nums">4 8 2 0 1 7 ♡</span></div>
+            <div id="catSticker" class="cat-sticker"></div>
+          </div>
         </aside>
       </div>
     </div>
@@ -113,8 +150,8 @@
   <div id="sr" class="sr-only" aria-live="polite"></div>
   <div id="confetti" class="confetti" aria-hidden="true"></div>
 
-  <script src="js/pins.js"></script>
-  <script src="js/payment.js"></script>
-  <script src="js/app.js"></script>
+  <script type="module" src="js/pins.js"></script>
+  <script type="module" src="js/payment.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

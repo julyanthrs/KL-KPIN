@@ -204,36 +204,70 @@
       for (let i = 0; i < 10; i++) petals += `<ellipse cx="50" cy="29" rx="7.5" ry="13" fill="#fff" stroke="${INK}" stroke-width="1.8" transform="rotate(${i * 36} 50 50)"/>`;
       return `${petals}<circle cx="50" cy="50" r="14" fill="#ffd84d" ${S}/>${face(50, 51, 0.62)}`;
     },
+
+    puppy: () => `
+      <ellipse cx="50" cy="53" rx="24" ry="22" fill="#fff3dc" ${S}/>
+      <ellipse cx="60" cy="44" rx="8" ry="7" fill="#f2c08f"/>
+      <ellipse cx="27" cy="49" rx="9" ry="15" fill="#c98e5f" ${S} transform="rotate(18 27 49)"/>
+      <ellipse cx="73" cy="49" rx="9" ry="15" fill="#c98e5f" ${S} transform="rotate(-18 73 49)"/>
+      <circle cx="41" cy="51" r="2.9" fill="${INK}"/><circle cx="59" cy="51" r="2.9" fill="${INK}"/>
+      <circle cx="41.9" cy="50" r="1" fill="#fff"/><circle cx="59.9" cy="50" r="1" fill="#fff"/>
+      <ellipse cx="50" cy="58" rx="3.6" ry="2.6" fill="${INK}"/>
+      <path d="M48.6 62.4q1.4 4.4 2.8 0z" fill="#ff8fab"/>
+      <path d="M46.5 61q1.75 2.4 3.5 0q1.75 2.4 3.5 0" fill="none" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/>
+      <ellipse cx="35" cy="59" rx="4" ry="2.4" fill="${BLUSH}" opacity=".8"/><ellipse cx="65" cy="59" rx="4" ry="2.4" fill="${BLUSH}" opacity=".8"/>`,
+
+    ribbon: () => `
+      <path d="M47 53 36 77l8-2 4 7 5-27zM53 53l11 24-8-2-4 7-5-27z" fill="#ff8fb8" ${S}/>
+      <path d="M50 50C38 33 19 31 21 48c1 12 17 13 29 2zM50 50c12-17 31-19 29-2-1 12-17 13-29 2z" fill="#ff9cc4" ${S}/>
+      <path d="M41 46q-8-6-14-3M59 46q8-6 14-3" fill="none" stroke="${INK}" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="50" cy="50" r="8" fill="#ff6f9c" ${S}/>
+      ${sparkle(22, 26, 5)}${sparkle(80, 74, 5)}${sparkle(80, 24, 3.5, '#ffd84d')}`,
   };
 
   /* ---------- catalog ---------- */
   // Prices/stock are placeholders until the shop confirms its catalog (PRD §12 "not yet specified").
-  const BATCHES = [
-    { name: 'Sweet Treats', pins: ['strawberry', 'cherry', 'boba', 'peach', 'donut', 'heart'] },
-    { name: 'Critter Club', pins: ['cat', 'bunny', 'bear', 'frog', 'ghost', 'duck'] },
-    { name: 'Sky & Garden', pins: ['star', 'cloud', 'sun', 'moon', 'rainbow', 'daisy'] },
+  const CATEGORIES = [
+    { id: 'all', name: 'All', icon: 'star' },
+    { id: 'animals', name: 'Animals', icon: 'cat' },
+    { id: 'food', name: 'Food', icon: 'strawberry' },
+    { id: 'nature', name: 'Nature', icon: 'daisy' },
+    { id: 'cute', name: 'Cute Stuff', icon: 'ribbon' },
+    { id: 'special', name: 'Special', icon: 'sparkle' },
   ];
 
+  // Order here = order in the "All" tab.
   const PINS = [
-    { id: 'strawberry', name: 'Strawberry Milk', price: 55, stock: 24, bg: '#ffe3ea', pat: ['dots', '#ffc6d5'] },
-    { id: 'cherry', name: 'Cherry Duo', price: 50, stock: 18, bg: '#fff0d6', pat: ['checks', '#ffe2ad'] },
-    { id: 'boba', name: 'Boba Buddy', price: 60, stock: 20, bg: '#e3f6ea', pat: ['stripes', '#ccecd7'] },
-    { id: 'peach', name: 'Peachy', price: 50, stock: 15, bg: '#fff1e6', pat: ['dots', '#ffdcc4'] },
-    { id: 'donut', name: 'Sprinkle Donut', price: 55, stock: 12, bg: '#e8e4ff', pat: ['dots', '#d5ccff'] },
-    { id: 'heart', name: 'Love Heart', price: 45, stock: 30, bg: '#fff6c9', pat: ['rays', '#ffeb98'] },
-    { id: 'cat', name: 'Sleepy Cat', price: 60, stock: 14, bg: '#e3f2ff', pat: ['dots', '#c6e3ff'] },
-    { id: 'bunny', name: 'Bun Bun', price: 60, stock: 16, bg: '#ffe3f0', pat: ['checks', '#ffcde3'] },
-    { id: 'bear', name: 'Honey Bear', price: 60, stock: 10, bg: '#fff1d9', pat: ['stripes', '#ffe3b3'] },
-    { id: 'frog', name: 'Froggy', price: 55, stock: 22, bg: '#fff7d6', pat: ['dots', '#ffeaa3'] },
-    { id: 'ghost', name: 'Ghostie', price: 65, stock: 2, bg: '#e8e0ff', pat: ['stripes', '#d8ccff'] },
-    { id: 'duck', name: 'Ducky', price: 55, stock: 19, bg: '#dff5ff', pat: ['rays', '#c8ecff'] },
-    { id: 'star', name: 'Lucky Star', price: 50, stock: 25, bg: '#ece6ff', pat: ['dots', '#d9ceff'] },
-    { id: 'cloud', name: 'Cloud Nap', price: 50, stock: 17, bg: '#cfe9ff', pat: ['dots', '#b6dcff'] },
-    { id: 'sun', name: 'Sunny', price: 55, stock: 13, bg: '#fff3c4', pat: ['rays', '#ffe68e'] },
-    { id: 'moon', name: 'Moonbeam', price: 55, stock: 11, bg: '#4c5ba8', pat: ['night', '#ffffff'] },
-    { id: 'rainbow', name: 'Rainbow', price: 70, stock: 0, bg: '#fff0f5', pat: ['dots', '#ffdbe8'] },
-    { id: 'daisy', name: 'Daisy', price: 45, stock: 28, bg: '#dff7e8', pat: ['dots', '#c3edd3'] },
+    { id: 'puppy', cat: 'animals', name: 'Puppy', price: 60, stock: 20, bg: '#fff4d6', pat: ['dots', '#ffe6a8'] },
+    { id: 'cat', cat: 'animals', name: 'Sleepy Cat', price: 60, stock: 14, bg: '#e3f2ff', pat: ['dots', '#c6e3ff'] },
+    { id: 'strawberry', cat: 'food', name: 'Strawberry', price: 55, stock: 24, bg: '#ffe3ea', pat: ['dots', '#ffc6d5'] },
+    { id: 'moon', cat: 'nature', name: 'Moonbeam', price: 55, stock: 11, bg: '#4c5ba8', pat: ['night', '#ffffff'] },
+    { id: 'daisy', cat: 'nature', name: 'Daisy', price: 45, stock: 28, bg: '#dff7e8', pat: ['dots', '#c3edd3'] },
+    { id: 'ribbon', cat: 'cute', name: 'Ribbon', price: 50, stock: 18, bg: '#ffe8f2', pat: ['checks', '#ffd3e6'] },
+    { id: 'cloud', cat: 'nature', name: 'Cloud Nap', price: 50, stock: 17, bg: '#cfe9ff', pat: ['dots', '#b6dcff'] },
+    { id: 'bear', cat: 'animals', name: 'Honey Bear', price: 60, stock: 10, bg: '#fff1d9', pat: ['stripes', '#ffe3b3'] },
+    { id: 'star', cat: 'special', name: 'Lucky Star', price: 50, stock: 25, bg: '#ece6ff', pat: ['dots', '#d9ceff'] },
+    { id: 'heart', cat: 'cute', name: 'Heart', price: 45, stock: 30, bg: '#fff6c9', pat: ['rays', '#ffeb98'] },
+    { id: 'bunny', cat: 'animals', name: 'Bun Bun', price: 60, stock: 16, bg: '#ffe3f0', pat: ['checks', '#ffcde3'] },
+    { id: 'cherry', cat: 'food', name: 'Cherry Duo', price: 50, stock: 18, bg: '#fff0d6', pat: ['checks', '#ffe2ad'] },
+    { id: 'sun', cat: 'nature', name: 'Sunny', price: 55, stock: 13, bg: '#fff3c4', pat: ['rays', '#ffe68e'] },
+    { id: 'ghost', cat: 'cute', name: 'Ghostie', price: 65, stock: 2, bg: '#e8e0ff', pat: ['stripes', '#d8ccff'] },
+    { id: 'boba', cat: 'food', name: 'Boba', price: 60, stock: 20, bg: '#e3f6ea', pat: ['stripes', '#ccecd7'] },
+    { id: 'frog', cat: 'animals', name: 'Froggy', price: 55, stock: 22, bg: '#fff7d6', pat: ['dots', '#ffeaa3'] },
+    { id: 'peach', cat: 'food', name: 'Peachy', price: 50, stock: 15, bg: '#fff1e6', pat: ['dots', '#ffdcc4'] },
+    { id: 'rainbow', cat: 'special', name: 'Rainbow', price: 70, stock: 0, bg: '#fff0f5', pat: ['dots', '#ffdbe8'] },
+    { id: 'duck', cat: 'animals', name: 'Ducky', price: 55, stock: 19, bg: '#dff5ff', pat: ['rays', '#c8ecff'] },
+    { id: 'donut', cat: 'food', name: 'Donut', price: 55, stock: 12, bg: '#e8e4ff', pat: ['dots', '#d5ccff'] },
   ];
+  PINS.forEach((p, i) => { p.code = String.fromCharCode(65 + Math.floor(i / 5)) + ((i % 5) + 1); });
+
+  // Small icon (tabs) — the pin art without the badge frame.
+  function iconSVG(id) {
+    if (id === 'sparkle') {
+      return `<svg class="ico" viewBox="0 0 100 100" aria-hidden="true">${sparkle(50, 50, 38, '#ffd84d').replace('/>', ` stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>`)}${sparkle(80, 22, 12, '#ff9cc4')}</svg>`;
+    }
+    return `<svg class="ico" viewBox="16 16 68 68" aria-hidden="true">${ART[id]('ic' + ++uid, { bg: '#fff' })}</svg>`;
+  }
 
   function pinSVG(p) {
     const u = 'kp' + ++uid;
@@ -251,5 +285,5 @@
     </svg>`;
   }
 
-  window.KP_PINS = { PINS, BATCHES, pinSVG, face, MAX_PER_PIN: 5 };
+  window.KP_PINS = { PINS, CATEGORIES, pinSVG, iconSVG, face, MAX_PER_PIN: 5 };
 })();

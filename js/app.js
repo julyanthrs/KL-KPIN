@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const { PINS, BATCHES, pinSVG, face, MAX_PER_PIN } = window.KP_PINS;
+  const { PINS, CATEGORIES, pinSVG, iconSVG, face, MAX_PER_PIN } = window.KP_PINS;
   const PAY = window.KP_PAY;
   const store = PAY.store;
 
@@ -31,19 +31,22 @@
   /* ---------- elements ---------- */
   const el = {
     camera: $('#camera'), machine: $('#machine'), viewport: $('#viewport'),
-    win: $('#window'), winInner: $('#windowInner'), winHit: $('#windowHit'),
+    win: $('#window'), winInner: $('#windowInner'), winHit: $('#windowHit'), tabs: $('#tabs'),
     bv: $('#batchViewport'), track: $('#batchTrack'), dots: $('#dots'), batchLabel: $('#batchLabel'),
     prev: $('#prevBatch'), next: $('#nextBatch'),
-    panel: $('#panel'), lcd: $('#lcd'), lcdText: $('#lcdText'), keys: $('#keys'),
+    panel: $('#panel'), lcd: $('#lcd'), lcdText: $('#lcdText'), lcdTotal: $('#lcdTotal'), lcdQty: $('#lcdQty'), keys: $('#keys'),
     receiptKey: $('#receiptKey'), rkCount: $('#rkCount'), qr: $('#qrScreen'),
     rWrap: $('#receiptWrap'), receipt: $('#receipt'), drawer: $('#drawer'), payBody: $('#payBody'),
-    push: $('#pushDoor'), tray: $('#tray'), flap: $('#flap'), coin: $('#coinSlot'), stripes: $('#stripes'),
+    push: $('#pushDoor'), tray: $('#tray'), flap: $('#flap'), stripes: $('#stripes'), catSticker: $('#catSticker'),
     chipHome: $('#chipHome'), chipReceipt: $('#chipReceipt'), chipCount: $('#chipCount'),
     hint: $('#hint'), mute: $('#muteBtn'), toast: $('#toast'), sr: $('#sr'), confetti: $('#confetti'),
   };
 
   const S = {
     view: 'home',
+    category: 'all',
+    pages: [],
+    pageSize: 0,
     batch: 0,
     hoverZoom: false,
     muted: store.get('klikpin_muted', false),
@@ -129,30 +132,71 @@
   /* =========================================================
      DISPLAY WINDOW + BATCHES (FR-04, FR-05)
      ========================================================= */
-  function slotHTML(p, code) {
+  const PLUS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
+  const catName = () => CATEGORIES.find((c) => c.id === S.category).name;
+
+  function slotHTML(p) {
     return `<div class="slot-item" data-id="${p.id}">
-      <div class="pin-wrap">
-        <div class="pin-art">${pinSVG(p)}</div>
+      <div class="pin-zone">
+        <div class="pin-wrap">
+          <div class="pin-art">${pinSVG(p)}</div>
+          <span class="holder" aria-hidden="true"></span>
+          <span class="ribbon" aria-hidden="true">SOLD OUT</span>
+          ${p.stock > 0 && p.stock <= 3 ? `<span class="low">only ${p.stock} left!</span>` : ''}
+        </div>
         <span class="qty-badge" aria-hidden="true"></span>
-        <span class="ribbon" aria-hidden="true">SOLD OUT</span>
-        ${p.stock > 0 && p.stock <= 3 ? `<span class="low">only ${p.stock} left!</span>` : ''}
+        <button class="minus-bubble" data-act="dec" aria-label="Remove one ${p.name}">−</button>
       </div>
-      <p class="pin-name">${p.name}</p>
-      <p class="pin-price"><span class="code" aria-hidden="true">${code}</span>${money(p.price)}</p>
-      <div class="lip">
-        <button class="step minus" data-act="dec" aria-label="Remove one ${p.name}">−</button>
-        <span class="qty" aria-hidden="true">0</span>
-        <button class="step plus" data-act="inc" aria-label="Add ${p.name}, ${money(p.price)}">+</button>
+      <div class="label">
+        <div class="label-info">
+          <p class="pin-name">${p.name}</p>
+          <p class="pin-price"><span class="code" aria-hidden="true">${p.code}</span>${money(p.price)}</p>
+        </div>
+        <button class="add" data-act="inc" aria-label="Add ${p.name}, ${money(p.price)}">${PLUS_SVG}</button>
       </div>
     </div>`;
   }
 
-  function buildWindow() {
-    el.track.innerHTML = BATCHES.map((b, bi) =>
-      `<div class="page" data-batch="${bi}" role="group" aria-label="Batch ${bi + 1} of ${BATCHES.length}: ${b.name}">
-        ${b.pins.map((id, i) => slotHTML(byId[id], String.fromCharCode(65 + bi) + (i + 1))).join('')}
+  function buildTabs() {
+    el.tabs.innerHTML = CATEGORIES.map((c) =>
+      `<button class="tab" data-cat="${c.id}" aria-pressed="${c.id === S.category}">${iconSVG(c.icon)}<span>${c.name}</span></button>`).join('');
+  }
+
+  function currentPageSize() {
+    const cs = getComputedStyle(el.machine);
+    return (parseInt(cs.getPropertyValue('--cols'), 10) || 5) * (parseInt(cs.getPropertyValue('--rows'), 10) || 2);
+  }
+
+  // Splits the active category into pages that slide left/right (FR-04).
+  function buildPages(keepId) {
+    S.pageSize = currentPageSize();
+    const ids = PINS.filter((p) => S.category === 'all' || p.cat === S.category).map((p) => p.id);
+    S.pages = [];
+    for (let i = 0; i < ids.length; i += S.pageSize) S.pages.push(ids.slice(i, i + S.pageSize));
+    if (keepId) { const at = S.pages.findIndex((pg) => pg.includes(keepId)); S.batch = at < 0 ? 0 : at; }
+    S.batch = Math.min(S.batch, S.pages.length - 1);
+    el.track.innerHTML = S.pages.map((pg, bi) =>
+      `<div class="page" data-batch="${bi}" role="group" aria-label="${catName()}, page ${bi + 1} of ${S.pages.length}">
+        ${pg.map((id) => slotHTML(byId[id])).join('')}
       </div>`).join('');
-    el.dots.innerHTML = BATCHES.map((b, i) => `<button class="dot" data-i="${i}" aria-label="Show batch ${i + 1}: ${b.name}"></button>`).join('');
+    el.dots.innerHTML = S.pages.map((_, i) => `<button class="dot" data-i="${i}" aria-label="Show page ${i + 1}"></button>`).join('');
+    el.win.classList.toggle('single-page', S.pages.length < 2);
+    PINS.forEach((p) => updateSlot(p.id));
+    el.track.classList.add('dragging');
+    applyBatch();
+    void el.track.offsetWidth;
+    el.track.classList.remove('dragging');
+  }
+
+  function setCategory(id) {
+    if (id === S.category) return;
+    S.category = id;
+    S.batch = 0;
+    el.tabs.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.cat === id)));
+    buildPages();
+    sfx.slide();
+    track('category_selected', { category: id });
+    announce(`${catName()}: ${S.pages.flat().length} pins`);
   }
 
   function updateSlot(id) {
@@ -161,9 +205,10 @@
     const q = qty(id), max = maxFor(id);
     node.classList.toggle('in-cart', q > 0);
     node.classList.toggle('is-soldout', availableStock(id) <= 0);
-    node.querySelector('.qty').textContent = q;
     node.querySelector('.qty-badge').textContent = q ? '×' + q : '';
-    node.querySelector('[data-act="dec"]').disabled = q === 0;
+    const minus = node.querySelector('[data-act="dec"]');
+    minus.disabled = q === 0;
+    minus.tabIndex = q === 0 ? -1 : 0;
     const plus = node.querySelector('[data-act="inc"]');
     plus.disabled = availableStock(id) <= 0;
     plus.classList.toggle('at-max', q >= max && max > 0);
@@ -189,19 +234,19 @@
       d.classList.toggle('on', j === S.batch);
       if (j === S.batch) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current');
     });
-    el.batchLabel.textContent = `${BATCHES[S.batch].name} · ${S.batch + 1}/${BATCHES.length}`;
+    el.batchLabel.textContent = `page ${S.batch + 1}/${S.pages.length}`;
     el.prev.disabled = S.batch === 0;
-    el.next.disabled = S.batch === BATCHES.length - 1;
+    el.next.disabled = S.batch >= S.pages.length - 1;
   }
 
   function setBatch(i, source = 'button') {
-    if (i < 0 || i >= BATCHES.length) { applyBatch(); sfx.err(); return; }
+    if (i < 0 || i >= S.pages.length) { applyBatch(); sfx.err(); return; }
     if (i === S.batch) { applyBatch(); return; }
     S.batch = i;
     applyBatch();
     sfx.slide();
-    track('product_batch_changed', { batch: i + 1, name: BATCHES[i].name, source });
-    announce(`${BATCHES[i].name}, batch ${i + 1} of ${BATCHES.length}`);
+    track('product_batch_changed', { batch: i + 1, category: S.category, source });
+    announce(`${catName()}, page ${i + 1} of ${S.pages.length}`);
   }
 
   /* =========================================================
@@ -231,9 +276,9 @@
     const small = window.innerHeight < 460;
     const hudB = v === 'payment' ? 0 : small ? 44 : 64;
     if (v === 'home') {
-      frame({ x: 0, y: 0, w: el.machine.offsetWidth, h: el.machine.offsetHeight + 30 }, { max: 1, top: small ? 30 : 46, bottom: hudB });
+      frame({ x: -6, y: -6, w: el.machine.offsetWidth + 12, h: el.machine.offsetHeight + 22 }, { max: 1.1, pad: Math.max(8, Math.min(16, window.innerWidth * 0.02)), top: small ? 30 : 48, bottom: hudB - 4 });
     } else if (v === 'window') {
-      const r = rectOf(el.win), px = isPortrait() ? 26 : 44;
+      const r = rectOf(el.win), px = isPortrait() ? 26 : 50;
       frame({ x: r.x - px, y: r.y - 18, w: r.w + px * 2, h: r.h + 36 }, { max: 1.45, bottom: hudB });
     } else if (v === 'receipt') {
       const r = rectOf(el.rWrap), h = el.receipt.offsetHeight;
@@ -291,31 +336,33 @@
   /* =========================================================
      LCD + QR SCREEN
      ========================================================= */
+  // TOTAL display: small label line (shows quick messages) + big running total.
   let lcdTimer;
   function lcdIdle() {
-    if (lcdTimer) return; // a flash message is showing
     const t = totals();
-    el.lcdText.textContent = t.count ? `${t.count} PIN${t.count > 1 ? 'S' : ''} · PHP ${t.subtotal} · PRESS RECEIPT` : 'HELLO! PICK A PIN <3';
-    el.lcd.classList.add('marquee');
+    const amt = t.subtotal.toFixed(2);
+    el.lcdTotal.textContent = amt;
+    el.lcdTotal.dataset.ghost = amt.replace(/\d/g, '8'); // unlit "8" segments behind the digits
+    el.lcdQty.textContent = 'QTY ' + String(t.count).padStart(2, '0');
+    if (lcdTimer) return; // a flash message is showing
+    el.lcd.classList.remove('flash');
+    el.lcdText.textContent = t.count ? 'SUBTOTAL' : 'READY';
   }
   function lcdFlash(msg, ms = 1400) {
     clearTimeout(lcdTimer);
-    el.lcd.classList.remove('marquee');
+    el.lcd.classList.add('flash');
     el.lcdText.textContent = msg;
     lcdTimer = setTimeout(() => { lcdTimer = null; lcdIdle(); }, ms);
   }
 
   function qrIdle() {
-    el.qr.className = 'qr-screen';
-    el.qr.innerHTML = '<div class="qr-idle"><b>QR CODE</b><small>scan to pay</small></div>';
+    el.qr.innerHTML = '<span class="qr-title">QR CODE</span><span class="qr-ph" aria-hidden="true">♡</span><span class="qr-sub">scan at checkout</span>';
   }
   function qrShow(seed, amount) {
-    el.qr.className = 'qr-screen live';
-    el.qr.innerHTML = `${qrSVG(seed)}<div class="qr-side"><b>SCAN</b>to pay<span>${money(amount)}</span></div>`;
+    el.qr.innerHTML = `<span class="qr-title">SCAN TO PAY</span>${qrSVG(seed)}<span class="qr-amt">${money(amount)}</span>`;
   }
   function qrThanks() {
-    el.qr.className = 'qr-screen';
-    el.qr.innerHTML = '<div class="qr-thanks">THANK<br>YOU &lt;3</div>';
+    el.qr.innerHTML = '<span class="qr-title">QR CODE</span><div class="qr-thanks">THANK<br>YOU &lt;3</div>';
   }
   function qrSVG(seed) {
     const N = 25;
@@ -413,11 +460,12 @@
   function printReceipt() {
     renderReceipt();
     el.rWrap.classList.remove('adjust', 'retract');
+    el.rWrap.style.height = '0px';
     void el.rWrap.offsetWidth;
     el.rWrap.classList.add('printing');
     el.rWrap.style.height = el.receipt.offsetHeight + 'px';
     sfx.print();
-    lcdFlash('PRINTING...', 1800);
+    lcdFlash('PRINTING...', 2300);
   }
   function retractReceipt() {
     el.rWrap.classList.remove('printing', 'adjust');
@@ -791,7 +839,23 @@
       slide() { tone(480, 0.16, 'sine', 0.05, 0, 820); },
       key() { tone(1000 + Math.random() * 400, 0.05, 'square', 0.025); },
       zoom() { tone(380, 0.28, 'sine', 0.03, 0, 720); },
-      print() { for (let i = 0; i < 12; i++) tone(170 + Math.random() * 70, 0.05, 'sawtooth', 0.022, i * 0.13); },
+      print() { // soft continuous paper-feed whirr
+        if (S.muted) return;
+        const c = ac(); if (!c) return;
+        const t = c.currentTime, d = 2.3;
+        const o = c.createOscillator(), lfo = c.createOscillator(), lg = c.createGain(), g = c.createGain(), f = c.createBiquadFilter();
+        o.type = 'sawtooth'; o.frequency.value = 120;
+        lfo.frequency.value = 9; lg.gain.value = 14;
+        lfo.connect(lg).connect(o.frequency);
+        f.type = 'lowpass'; f.frequency.value = 700;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.03, t + 0.25);
+        g.gain.setValueAtTime(0.03, t + d - 0.5);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        o.connect(f).connect(g).connect(c.destination);
+        o.start(t); lfo.start(t); o.stop(t + d + 0.05); lfo.stop(t + d + 0.05);
+      },
+      ding() { tone(1568, 0.12, 'sine', 0.05); tone(2093, 0.25, 'sine', 0.04, 0.08); },
       err() { tone(240, 0.16, 'square', 0.035); tone(190, 0.2, 'square', 0.035, 0.12); },
       success() { [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.2, 'triangle', 0.08, i * 0.1)); },
       thunk() { tone(150, 0.13, 'sine', 0.1, 0, 70); },
@@ -840,26 +904,57 @@
     }).join('');
   }
 
+  const STAR5 = (() => {
+    const p = [];
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 11 : 24;
+      p.push((30 + r * Math.cos(a)).toFixed(1) + ' ' + (31 + r * Math.sin(a)).toFixed(1));
+    }
+    return 'M' + p.join('L') + 'Z';
+  })();
+  const FLOWER = (() => {
+    let d = '';
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+      const x = 30 + 13 * Math.cos(a), y = 30 + 13 * Math.sin(a);
+      d += `M${(x + 10).toFixed(1)} ${y.toFixed(1)}a10 10 0 1 0 -20 0a10 10 0 1 0 20 0z`;
+    }
+    return d;
+  })();
   const STICKERS = {
     heart: { d: 'M30 52C10 40 6 26 14 18c6-6 13-3 16 2 3-5 10-8 16-2 8 8 4 22-16 34z', fill: '#ff8fb1', face: [30, 31, 0.5], shine: 'M15 24q2-5 7-6' },
-    diamond: { d: 'M30 5 53 30 30 55 7 30z', fill: '#ffe27a', shine: 'M22 22l6-7' },
-    ring: { d: 'M30 9a21 21 0 1 0 .01 0zM30 21a9 9 0 1 1-.01 0z', fill: '#8fe3be', rule: 'evenodd', shine: 'M15 22q3-6 9-9' },
-    square: { d: 'M14 10h32a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4z', fill: '#c9b8ff', face: [30, 32, 0.55], shine: 'M15 20q1-4 5-5' },
-    circle: { d: 'M30 8a22 22 0 1 0 .01 0z', fill: '#ffc29f', face: [30, 31, 0.55], shine: 'M15 22q3-6 9-9' },
-    square2: { d: 'M14 10h32a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4z', fill: '#a9dcff', shine: 'M15 20q1-4 5-5' },
+    star: { d: STAR5, fill: '#ffe27a', shine: 'M24 22l3-6' },
+    sparkle: { d: 'M30 4Q33 27 56 30Q33 33 30 56Q27 33 4 30Q27 27 30 4Z', fill: '#bfe3ff', shine: 'M28 16v6' },
+    rect: { d: 'M10 18h40a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z', fill: '#bfe3ff', shine: 'M12 24h8' },
+    rectY: { d: 'M10 18h40a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z', fill: '#ffe98f', shine: 'M12 24h8' },
+    flower: { d: FLOWER, fill: '#fff', center: true, shine: 'M22 14q3-3 6-3' },
   };
   function buildStickers() {
     document.querySelectorAll('.sticker').forEach((node) => {
       const s = STICKERS[node.dataset.shape];
-      const r = s.rule ? `fill-rule="${s.rule}"` : '';
       node.innerHTML = `<svg viewBox="0 0 60 60">
-        <path d="${s.d}" ${r} fill="none" stroke="#2c2554" stroke-width="11" stroke-linejoin="round"/>
-        <path d="${s.d}" ${r} fill="#fff" stroke="#fff" stroke-width="7" stroke-linejoin="round"/>
-        <path d="${s.d}" ${r} fill="${s.fill}"/>
+        <path d="${s.d}" fill="#2c2554" stroke="#2c2554" stroke-width="11" stroke-linejoin="round"/>
+        <path d="${s.d}" fill="#fff" stroke="#fff" stroke-width="7" stroke-linejoin="round"/>
+        <path d="${s.d}" fill="${s.fill}" ${s.center ? 'stroke="#2c2554" stroke-width="1.5"' : ''}/>
+        ${s.center ? '<circle cx="30" cy="30" r="9" fill="#ffd84d" stroke="#2c2554" stroke-width="2.5"/>' : ''}
         ${s.face ? face(...s.face) : ''}
         <path d="${s.shine}" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".85"/>
       </svg>`;
     });
+    // little cat peeking over the barcode on the side panel
+    el.catSticker.innerHTML = `<svg viewBox="0 0 60 60">
+      <g stroke-linejoin="round">
+        <path d="M12 26 14 8l14 10zM48 26 46 8 32 18z" fill="#2c2554" stroke="#2c2554" stroke-width="10"/>
+        <ellipse cx="30" cy="34" rx="22" ry="18" fill="#2c2554" stroke="#2c2554" stroke-width="10"/>
+        <path d="M12 26 14 8l14 10zM48 26 46 8 32 18z" fill="#fff" stroke="#fff" stroke-width="6"/>
+        <ellipse cx="30" cy="34" rx="22" ry="18" fill="#fff" stroke="#fff" stroke-width="6"/>
+        <path d="M12 26 14 8l14 10zM48 26 46 8 32 18z" fill="#fff" stroke="#3b2a4a" stroke-width="2"/>
+        <ellipse cx="30" cy="34" rx="22" ry="18" fill="#fff" stroke="#3b2a4a" stroke-width="2"/>
+        <path d="M40 18q8-6 7 8q-6-2-7-8z" fill="#ffb36b"/>
+        <path d="M16 13 17 21l6-4z" fill="#ffb3c8"/>
+      </g>
+      ${face(30, 35, 0.75)}
+    </svg>`;
   }
 
   function buildKeys() {
@@ -934,7 +1029,7 @@
     }
     drag.dx = dx / S.camScale;
     let off = drag.dx;
-    if ((S.batch === 0 && off > 0) || (S.batch === BATCHES.length - 1 && off < 0)) off *= 0.35;
+    if ((S.batch === 0 && off > 0) || (S.batch === S.pages.length - 1 && off < 0)) off *= 0.35;
     el.track.style.transform = `translateX(calc(${-S.batch * 100}% + ${off}px))`;
   });
   function endDrag(e) {
@@ -978,7 +1073,19 @@
   el.chipReceipt.addEventListener('click', () => openReceipt('chip'));
   el.chipHome.addEventListener('click', () => setView('home', { focus: true }));
   el.flap.addEventListener('click', collect);
-  el.coin.addEventListener('click', () => { sfx.coin(); toast('No coins needed — this machine takes online payment ♡'); });
+  el.tabs.addEventListener('click', (e) => { const t = e.target.closest('.tab'); if (t) setCategory(t.dataset.cat); });
+  // keep the receipt fully visible if fonts nudge its height after printing
+  el.rWrap.addEventListener('transitionend', (e) => {
+    if (e.target !== el.rWrap || e.propertyName !== 'height' || S.view !== 'receipt') return;
+    if (el.rWrap.classList.contains('printing')) {
+      el.rWrap.classList.remove('printing'); // curl unrolls flat
+      sfx.ding();
+    }
+    if (el.rWrap.offsetHeight !== el.receipt.offsetHeight) {
+      el.rWrap.classList.add('adjust');
+      el.rWrap.style.height = el.receipt.offsetHeight + 'px';
+    }
+  });
   el.mute.addEventListener('click', () => { S.muted = !S.muted; store.set('klikpin_muted', S.muted); applyMute(); sfx.key(); });
 
   // click away from the window to step back
@@ -1011,16 +1118,22 @@
   el.viewport.addEventListener('scroll', () => { el.viewport.scrollTop = 0; el.viewport.scrollLeft = 0; });
 
   let rzT;
-  window.addEventListener('resize', () => {
+  const onResize = () => {
     clearTimeout(rzT);
     rzT = setTimeout(() => {
       root.classList.add('no-anim');
       drawStripes();
+      if (currentPageSize() !== S.pageSize) {
+        const first = S.pages[S.batch] && S.pages[S.batch][0];
+        buildPages(first);
+      }
       if (S.view === 'receipt') el.rWrap.style.height = el.receipt.offsetHeight + 'px';
       frameView();
       requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
     }, 60);
-  });
+  };
+  window.addEventListener('resize', onResize);
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(el.viewport);
 
   window.addEventListener('pagehide', () => {
     if ((S.view === 'receipt' || S.view === 'payment') && lines().length) track('checkout_abandoned', { view: S.view, orderId: S.checkout.orderId });
@@ -1032,9 +1145,8 @@
   function init() {
     buildStickers();
     buildKeys();
-    buildWindow();
-    PINS.forEach((p) => updateSlot(p.id));
-    applyBatch();
+    buildTabs();
+    buildPages();
     qrIdle();
     lcdIdle();
     drawStripes();
