@@ -261,7 +261,7 @@
   }
 
   function frame(r, o = {}) {
-    const vw = window.innerWidth, vh = window.innerHeight;
+    const vw = el.viewport.clientWidth, vh = el.viewport.clientHeight;
     const pad = o.pad != null ? o.pad : Math.max(10, Math.min(28, vw * 0.03));
     const top = pad + (o.top || 0), bottom = pad + (o.bottom || 0);
     const s = Math.min((vw - pad * 2) / r.w, (vh - top - bottom) / r.h, o.max || 1.5);
@@ -276,7 +276,15 @@
     const small = window.innerHeight < 460;
     const hudB = v === 'payment' ? 0 : small ? 44 : 64;
     if (v === 'home') {
-      frame({ x: -6, y: -6, w: el.machine.offsetWidth + 12, h: el.machine.offsetHeight + 22 }, { max: 1.1, pad: Math.max(8, Math.min(16, window.innerWidth * 0.02)), top: small ? 30 : 48, bottom: hudB - 4 });
+      if (isPortrait() || matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
+        // Keep the complete cabinet between the fixed controls on phone screens.
+        const hintBottom = el.hint.hidden ? 0 : el.hint.getBoundingClientRect().bottom;
+        const top = Math.max(hintBottom, el.mute.getBoundingClientRect().bottom) + 2;
+        const bottom = el.viewport.clientHeight - el.chipReceipt.getBoundingClientRect().top + 2;
+        frame({ x: -6, y: -6, w: el.machine.offsetWidth + 30, h: el.machine.offsetHeight + 20 }, { max: 1.25, pad: 2, top, bottom });
+      } else {
+        frame({ x: -6, y: -6, w: el.machine.offsetWidth + 12, h: el.machine.offsetHeight + 22 }, { max: 1.25, pad: 8, top: small ? 12 : 18, bottom: small ? 12 : 18 });
+      }
     } else if (v === 'window') {
       const r = rectOf(el.win), px = isPortrait() ? 26 : 50;
       frame({ x: r.x - px, y: r.y - 18, w: r.w + px * 2, h: r.h + 36 }, { max: 1.45, bottom: hudB });
@@ -285,7 +293,8 @@
       frame({ x: r.x - 20, y: r.y - 58, w: r.w + 40, h: h + 58 + 28 }, { max: 2.4, bottom: hudB });
     } else if (v === 'payment') {
       const p = rectOf(el.panel), d = rectOf(el.drawer);
-      frame({ x: p.x - 14, y: p.y - 14, w: p.w + 28, h: d.y + el.drawer.offsetHeight - p.y + 28 }, { max: 1.7, pad: 10 });
+      const left = Math.min(p.x, d.x), right = Math.max(p.x + p.w, d.x + d.w);
+      frame({ x: left - 14, y: p.y - 14, w: right - left + 28, h: d.y + el.drawer.offsetHeight - p.y + 28 }, { max: 1.7, pad: 10 });
     }
   }
 
@@ -426,40 +435,45 @@
       const p = byId[l.id], flag = cart.flagged[l.id], so = flag === 'soldout';
       const amt = money(l.qty * p.price);
       return `<li class="r-line${so ? ' is-flagged' : ''}">
-        <span class="r-thumb">${pinSVG(p)}</span>
         <div class="r-info">
           <b class="r-name">${p.name}</b>
           <span class="r-calc">${l.qty} × ${money(p.price)}</span>
           ${so ? '<em class="r-flag">sold out · not charged</em>' : flag === 'reduced' ? `<em class="r-flag">only ${l.qty} left · qty updated</em>` : ''}
-          <span class="r-ctrls">
-            <button data-act="dec" data-id="${l.id}" aria-label="One less ${p.name}" ${so ? 'disabled' : ''}>−</button>
-            <button data-act="inc" data-id="${l.id}" aria-label="One more ${p.name}" ${so || l.qty >= maxFor(l.id) ? 'disabled' : ''}>+</button>
-            <button data-act="del" data-id="${l.id}" aria-label="Remove ${p.name} from order">✕</button>
-          </span>
         </div>
         <span class="r-amt">${so ? `<s>${amt}</s>` : amt}</span>
+        <div class="r-edit-row">
+          <span class="r-ctrls" role="group" aria-label="${p.name} quantity">
+            <button data-act="dec" data-id="${l.id}" aria-label="One less ${p.name}" ${so ? 'disabled' : ''}>−</button>
+            <span class="r-qty" aria-label="Quantity ${l.qty}">${l.qty}</span>
+            <button data-act="inc" data-id="${l.id}" aria-label="One more ${p.name}" ${so || l.qty >= maxFor(l.id) ? 'disabled' : ''}>+</button>
+          </span>
+          <button class="r-remove" data-act="del" data-id="${l.id}" aria-label="Remove ${p.name} from order">remove</button>
+        </div>
       </li>`;
     }).join('');
     el.receipt.innerHTML = `
-      <div class="r-head"><p class="r-brand">KL!KPIN</p><p class="r-sub">button pin machine ✿</p></div>
+      <div class="r-head"><p class="r-brand">KL!KPIN</p><p class="r-sub">BUTTON PIN MACHINE</p></div>
       <p class="r-meta"><span>ORDER #${S.checkout.orderId || '-----'}</span><span>${date} · ${time}</span></p>
-      <h2 class="r-title" id="rTitle" tabindex="-1">~ your receipt ~</h2>
+      <h2 class="r-title" id="rTitle" tabindex="-1">ORDER RECEIPT</h2>
+      <p class="r-columns"><span>ITEM / QTY</span><span>AMOUNT</span></p>
       ${ls.length ? `<ul class="r-lines">${items}</ul>` : '<p class="r-empty">no pins yet ♡<br>go back and add one!</p>'}
       <div class="r-tot">
-        <p><span>subtotal · ${t.count} pin${t.count === 1 ? '' : 's'}</span><span>${money(t.subtotal)}</span></p>
-        <p class="r-grand"><span>TOTAL</span><span>${money(t.subtotal)}</span></p>
+        <p class="r-count"><span>ITEMS</span><span>${t.count}</span></p>
+        <p class="r-grand"><b>TOTAL DUE</b><strong>${money(t.subtotal)}</strong></p>
       </div>
+      <div class="r-barcode" aria-hidden="true"></div>
+      <p class="r-thanks">a little pin, a little joy ♡<br>THANK YOU FOR STOPPING BY!</p>
       <div class="r-actions">
         <button class="r-btn primary" data-act="confirm" ${t.count ? '' : 'disabled'}>Confirm order ♡</button>
         <button class="r-btn" data-act="edit">← edit order</button>
-      </div>
-      <div class="r-barcode" aria-hidden="true"></div>
-      <p class="r-thanks">thank you, come again ♡</p>`;
+      </div>`;
   }
 
   function printReceipt() {
     renderReceipt();
-    el.rWrap.classList.remove('adjust', 'retract');
+    el.rWrap.classList.remove('printing', 'unrolling', 'adjust', 'retract');
+    el.receipt.inert = true;
+    el.rWrap.style.setProperty('--receipt-height', el.receipt.offsetHeight + 'px');
     el.rWrap.style.height = '0px';
     void el.rWrap.offsetWidth;
     el.rWrap.classList.add('printing');
@@ -468,14 +482,15 @@
     lcdFlash('PRINTING...', 2300);
   }
   function retractReceipt() {
-    el.rWrap.classList.remove('printing', 'adjust');
+    el.rWrap.classList.remove('printing', 'unrolling', 'adjust');
     el.rWrap.style.height = '0px';
   }
   function afterReceiptEdit() {
     const a = document.activeElement;
     const keep = a && el.receipt.contains(a) && a.dataset ? { act: a.dataset.act, id: a.dataset.id } : null;
     renderReceipt();
-    el.rWrap.classList.remove('printing');
+    el.rWrap.classList.remove('printing', 'unrolling');
+    el.receipt.inert = false;
     el.rWrap.classList.add('adjust');
     el.rWrap.style.height = el.receipt.offsetHeight + 'px';
     frameView();
@@ -756,9 +771,20 @@
       d.innerHTML = pinSVG(byId[id]);
       d.style.cssText = `left:${startX + i * step}px;width:${size}px;height:${size}px;--rot:${Math.round(Math.random() * 50 - 25)}deg;animation-delay:${reduce ? 0 : i * 130}ms`;
       el.tray.appendChild(d);
-      later(() => sfx.thunk(), i * 130 + 500);
+      if (!reduce || i === 0) later(() => {
+        if (el.tray.contains(d)) sfx.thunk();
+      }, i * 130 + 437);
     });
     el.push.classList.add('has-pins');
+    const firstPin = el.tray.firstElementChild;
+    later(() => {
+      if (!firstPin || !el.tray.contains(firstPin)) return;
+      const r = el.flap.getBoundingClientRect();
+      burst(r.left + r.width / 2, r.top + r.height * .65, [], { small: true });
+    }, 437);
+    later(() => {
+      if (firstPin && el.tray.contains(firstPin)) sfx.ding();
+    }, Math.max(0, shown.length - 1) * 130 + 1150);
     el.flap.setAttribute('aria-label', `Push the flap to collect your ${ids.length} pin${ids.length === 1 ? '' : 's'}`);
     toast('Your pins dropped! Push the flap to collect ♡', 3600);
   }
@@ -789,25 +815,26 @@
     track('pins_collected', { orderId: S.lastOrder.orderId });
   }
 
-  function burst(x, y, ids) {
+  function burst(x, y, ids, { small = false } = {}) {
     if (reduce) return;
     const colors = ['#ff7fa7', '#ffe066', '#7ed8b1', '#b9a7ff', '#7cc8ff'];
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < (small ? 14 : 30); i++) {
       const d = document.createElement('span');
       d.className = 'confetti-bit';
-      if (i < Math.min(ids.length, 10)) { d.classList.add('is-pin'); d.innerHTML = pinSVG(byId[ids[i]]); }
+      if (small) { d.textContent = i % 2 ? '✦' : '♡'; d.style.color = colors[i % 5]; }
+      else if (i < Math.min(ids.length, 10)) { d.classList.add('is-pin'); d.innerHTML = pinSVG(byId[ids[i]]); }
       else if (i % 3 === 0) { d.textContent = '♡'; d.style.color = colors[i % 5]; }
       else d.style.background = colors[i % 5];
       d.style.left = x + 'px'; d.style.top = y + 'px';
       el.confetti.appendChild(d);
       const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.4;
-      const dist = 140 + Math.random() * 280;
+      const dist = small ? 50 + Math.random() * 70 : 140 + Math.random() * 280;
       const dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist;
       const anim = d.animate([
         { transform: 'translate(-50%,-50%) scale(.3) rotate(0deg)', opacity: 1 },
         { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1) rotate(${Math.random() * 360 - 180}deg)`, opacity: 1, offset: 0.55 },
-        { transform: `translate(calc(-50% + ${dx * 1.15}px), calc(-50% + ${dy + 260}px)) scale(.9) rotate(${Math.random() * 720 - 360}deg)`, opacity: 0 },
-      ], { duration: 1400 + Math.random() * 700, easing: 'cubic-bezier(.2,.7,.3,1)' });
+        { transform: `translate(calc(-50% + ${dx * 1.15}px), calc(-50% + ${dy + (small ? 90 : 260)}px)) scale(.9) rotate(${Math.random() * 720 - 360}deg)`, opacity: 0 },
+      ], { duration: small ? 850 + Math.random() * 250 : 1400 + Math.random() * 700, easing: 'cubic-bezier(.2,.7,.3,1)' });
       anim.onfinish = () => d.remove();
     }
   }
@@ -1077,13 +1104,26 @@
   el.chipHome.addEventListener('click', () => setView('home', { focus: true }));
   el.flap.addEventListener('click', collect);
   el.tabs.addEventListener('click', (e) => { const t = e.target.closest('.tab'); if (t) setCategory(t.dataset.cat); });
+  el.rWrap.addEventListener('animationend', (e) => {
+    if (e.target !== el.rWrap || e.animationName !== 'receipt-processing' || S.view !== 'receipt') return;
+    el.rWrap.classList.remove('printing');
+    el.rWrap.classList.add('unrolling');
+    lcdFlash('UNROLLING...', 850);
+  });
+  el.receipt.addEventListener('animationend', (e) => {
+    if (e.target !== el.receipt || e.animationName !== 'receipt-unroll' || S.view !== 'receipt') return;
+    el.rWrap.classList.remove('unrolling');
+    el.receipt.inert = false;
+    sfx.ding();
+    $('#rTitle').focus({ preventScroll: true });
+    if (el.rWrap.offsetHeight !== el.receipt.offsetHeight) {
+      el.rWrap.classList.add('adjust');
+      el.rWrap.style.height = el.receipt.offsetHeight + 'px';
+    }
+  });
   // keep the receipt fully visible if fonts nudge its height after printing
   el.rWrap.addEventListener('transitionend', (e) => {
     if (e.target !== el.rWrap || e.propertyName !== 'height' || S.view !== 'receipt') return;
-    if (el.rWrap.classList.contains('printing')) {
-      el.rWrap.classList.remove('printing'); // curl unrolls flat
-      sfx.ding();
-    }
     if (el.rWrap.offsetHeight !== el.receipt.offsetHeight) {
       el.rWrap.classList.add('adjust');
       el.rWrap.style.height = el.receipt.offsetHeight + 'px';
@@ -1130,12 +1170,16 @@
         const first = S.pages[S.batch] && S.pages[S.batch][0];
         buildPages(first);
       }
-      if (S.view === 'receipt') el.rWrap.style.height = el.receipt.offsetHeight + 'px';
+      if (S.view === 'receipt') {
+        el.rWrap.style.height = el.receipt.offsetHeight + 'px';
+        el.rWrap.style.setProperty('--receipt-height', el.receipt.offsetHeight + 'px');
+      }
       frameView();
       requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
     }, 60);
   };
   window.addEventListener('resize', onResize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
   if (window.ResizeObserver) new ResizeObserver(onResize).observe(el.viewport);
 
   window.addEventListener('pagehide', () => {

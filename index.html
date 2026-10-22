@@ -53,17 +53,17 @@
         </section>
 
         <!-- STICKERS (landscape position --lx/--ly, phone position --px/--py) -->
-        <div class="sticker" data-shape="star" aria-hidden="true" style="--lx:26px;--ly:44px;--px:24px;--py:1490px;--s:64px;--r:-8deg"></div>
+        <div class="sticker" data-shape="star" aria-hidden="true" style="--lx:26px;--ly:44px;--px:24px;--py:1570px;--s:64px;--r:-8deg"></div>
         <div class="sticker" data-shape="heart" aria-hidden="true" style="--lx:30px;--ly:270px;--px:100px;--py:1584px;--s:60px;--r:-12deg"></div>
         <div class="sticker" data-shape="sparkle" aria-hidden="true" style="--lx:40px;--ly:480px;--px:36px;--py:1690px;--s:40px;--r:0deg"></div>
         <div class="sticker" data-shape="rect" aria-hidden="true" style="--lx:1298px;--ly:120px;--px:682px;--py:130px;--s:66px;--r:28deg"></div>
         <div class="sticker" data-shape="sparkle" aria-hidden="true" style="--lx:1318px;--ly:42px;--px:694px;--py:60px;--s:36px;--r:10deg"></div>
         <div class="sticker" data-shape="flower" aria-hidden="true" style="--lx:1302px;--ly:540px;--px:684px;--py:820px;--s:64px;--r:10deg"></div>
         <div class="sticker" data-shape="heart" aria-hidden="true" style="--lx:34px;--ly:848px;--px:8px;--py:440px;--s:54px;--r:14deg"></div>
-        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:470px;--ly:848px;--px:100px;--py:1730px;--s:62px;--r:-20deg"></div>
+        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:470px;--ly:848px;--px:36px;--py:1730px;--s:62px;--r:-20deg"></div>
         <div class="sticker" data-shape="rect" aria-hidden="true" style="--lx:700px;--ly:856px;--px:40px;--py:1800px;--s:56px;--r:-14deg"></div>
-        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:560px;--ly:1266px;--px:96px;--py:1892px;--s:54px;--r:-20deg"></div>
-        <div class="sticker" data-shape="star" aria-hidden="true" style="--lx:44px;--ly:1300px;--px:110px;--py:1428px;--s:58px;--r:10deg"></div>
+        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:560px;--ly:1340px;--px:36px;--py:1892px;--s:54px;--r:-20deg"></div>
+        <div class="sticker" data-shape="star" aria-hidden="true" style="--lx:44px;--ly:1300px;--px:36px;--py:1508px;--s:58px;--r:10deg"></div>
 
         <!-- TOTAL · KEYPAD · QR · RECEIPT BUTTON · PRINTER -->
         <section id="panel" class="panel" aria-label="Order total, keypad, QR screen and receipt printer">
@@ -84,13 +84,15 @@
           <div class="keypad"><div id="keys" class="keys" aria-hidden="true"></div></div>
           <div id="qrScreen" class="qr-screen"></div>
           <button id="receiptKey" class="receipt-key">
-            RECEIPT <span id="rkCount" class="rk-count"></span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21z" fill="#fff" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8h6M9 12h6M9 16h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span>Receipt</span><span id="rkCount" class="rk-count"></span>
+            <span class="receipt-heart" aria-hidden="true">♡</span>
           </button>
           <div class="printer" aria-hidden="true">
             <span class="slot-mouth"></span>
             <span class="paper-stub"><i></i><i></i><b>♡</b></span>
           </div>
+          <div class="payment-slot" aria-hidden="true"></div>
           <div id="receiptWrap" class="receipt-wrap">
             <div id="receipt" class="receipt" role="region" aria-label="Receipt"></div>
           </div>
