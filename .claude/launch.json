@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "klikpin",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["C:/Users/julia/AppData/Local/Temp/claude/C--Users-julia-OneDrive-Documents-ate-angel/beb330b4-b7d6-4616-9b69-fc8f500fd03c/scratchpad/serve.js", "C:/Users/julia/OneDrive/Documents/ate angel", "5173"],
+      "name": "dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 5173
     }
   ]

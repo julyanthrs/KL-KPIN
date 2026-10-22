@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const { PINS, BATCHES, pinSVG, face, MAX_PER_PIN } = window.KP_PINS;
+  const { PINS, CATEGORIES, pinSVG, iconSVG, face, MAX_PER_PIN } = window.KP_PINS;
   const PAY = window.KP_PAY;
   const store = PAY.store;
 
@@ -31,19 +31,22 @@
   /* ---------- elements ---------- */
   const el = {
     camera: $('#camera'), machine: $('#machine'), viewport: $('#viewport'),
-    win: $('#window'), winInner: $('#windowInner'), winHit: $('#windowHit'),
+    win: $('#window'), winInner: $('#windowInner'), winHit: $('#windowHit'), tabs: $('#tabs'),
     bv: $('#batchViewport'), track: $('#batchTrack'), dots: $('#dots'), batchLabel: $('#batchLabel'),
     prev: $('#prevBatch'), next: $('#nextBatch'),
-    panel: $('#panel'), lcd: $('#lcd'), lcdText: $('#lcdText'), keys: $('#keys'),
+    panel: $('#panel'), lcd: $('#lcd'), lcdText: $('#lcdText'), lcdTotal: $('#lcdTotal'), lcdQty: $('#lcdQty'), keys: $('#keys'),
     receiptKey: $('#receiptKey'), rkCount: $('#rkCount'), qr: $('#qrScreen'),
     rWrap: $('#receiptWrap'), receipt: $('#receipt'), drawer: $('#drawer'), payBody: $('#payBody'),
-    push: $('#pushDoor'), tray: $('#tray'), flap: $('#flap'), coin: $('#coinSlot'), stripes: $('#stripes'),
+    push: $('#pushDoor'), tray: $('#tray'), flap: $('#flap'), stripes: $('#stripes'), catSticker: $('#catSticker'),
     chipHome: $('#chipHome'), chipReceipt: $('#chipReceipt'), chipCount: $('#chipCount'),
     hint: $('#hint'), mute: $('#muteBtn'), toast: $('#toast'), sr: $('#sr'), confetti: $('#confetti'),
   };
 
   const S = {
     view: 'home',
+    category: 'all',
+    pages: [],
+    pageSize: 0,
     batch: 0,
     hoverZoom: false,
     muted: store.get('klikpin_muted', false),
@@ -129,30 +132,71 @@
   /* =========================================================
      DISPLAY WINDOW + BATCHES (FR-04, FR-05)
      ========================================================= */
-  function slotHTML(p, code) {
+  const PLUS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
+  const catName = () => CATEGORIES.find((c) => c.id === S.category).name;
+
+  function slotHTML(p) {
     return `<div class="slot-item" data-id="${p.id}">
-      <div class="pin-wrap">
-        <div class="pin-art">${pinSVG(p)}</div>
+      <div class="pin-zone">
+        <div class="pin-wrap">
+          <div class="pin-art">${pinSVG(p)}</div>
+          <span class="holder" aria-hidden="true"></span>
+          <span class="ribbon" aria-hidden="true">SOLD OUT</span>
+          ${p.stock > 0 && p.stock <= 3 ? `<span class="low">only ${p.stock} left!</span>` : ''}
+        </div>
         <span class="qty-badge" aria-hidden="true"></span>
-        <span class="ribbon" aria-hidden="true">SOLD OUT</span>
-        ${p.stock > 0 && p.stock <= 3 ? `<span class="low">only ${p.stock} left!</span>` : ''}
+        <button class="minus-bubble" data-act="dec" aria-label="Remove one ${p.name}">−</button>
       </div>
-      <p class="pin-name">${p.name}</p>
-      <p class="pin-price"><span class="code" aria-hidden="true">${code}</span>${money(p.price)}</p>
-      <div class="lip">
-        <button class="step minus" data-act="dec" aria-label="Remove one ${p.name}">−</button>
-        <span class="qty" aria-hidden="true">0</span>
-        <button class="step plus" data-act="inc" aria-label="Add ${p.name}, ${money(p.price)}">+</button>
+      <div class="label">
+        <div class="label-info">
+          <p class="pin-name">${p.name}</p>
+          <p class="pin-price"><span class="code" aria-hidden="true">${p.code}</span>${money(p.price)}</p>
+        </div>
+        <button class="add" data-act="inc" aria-label="Add ${p.name}, ${money(p.price)}">${PLUS_SVG}</button>
       </div>
     </div>`;
   }
 
-  function buildWindow() {
-    el.track.innerHTML = BATCHES.map((b, bi) =>
-      `<div class="page" data-batch="${bi}" role="group" aria-label="Batch ${bi + 1} of ${BATCHES.length}: ${b.name}">
-        ${b.pins.map((id, i) => slotHTML(byId[id], String.fromCharCode(65 + bi) + (i + 1))).join('')}
+  function buildTabs() {
+    el.tabs.innerHTML = CATEGORIES.map((c) =>
+      `<button class="tab" data-cat="${c.id}" aria-pressed="${c.id === S.category}">${iconSVG(c.icon)}<span>${c.name}</span></button>`).join('');
+  }
+
+  function currentPageSize() {
+    const cs = getComputedStyle(el.machine);
+    return (parseInt(cs.getPropertyValue('--cols'), 10) || 5) * (parseInt(cs.getPropertyValue('--rows'), 10) || 2);
+  }
+
+  // Splits the active category into pages that slide left/right (FR-04).
+  function buildPages(keepId) {
+    S.pageSize = currentPageSize();
+    const ids = PINS.filter((p) => S.category === 'all' || p.cat === S.category).map((p) => p.id);
+    S.pages = [];
+    for (let i = 0; i < ids.length; i += S.pageSize) S.pages.push(ids.slice(i, i + S.pageSize));
+    if (keepId) { const at = S.pages.findIndex((pg) => pg.includes(keepId)); S.batch = at < 0 ? 0 : at; }
+    S.batch = Math.min(S.batch, S.pages.length - 1);
+    el.track.innerHTML = S.pages.map((pg, bi) =>
+      `<div class="page" data-batch="${bi}" role="group" aria-label="${catName()}, page ${bi + 1} of ${S.pages.length}">
+        ${pg.map((id) => slotHTML(byId[id])).join('')}
       </div>`).join('');
-    el.dots.innerHTML = BATCHES.map((b, i) => `<button class="dot" data-i="${i}" aria-label="Show batch ${i + 1}: ${b.name}"></button>`).join('');
+    el.dots.innerHTML = S.pages.map((_, i) => `<button class="dot" data-i="${i}" aria-label="Show page ${i + 1}"></button>`).join('');
+    el.win.classList.toggle('single-page', S.pages.length < 2);
+    PINS.forEach((p) => updateSlot(p.id));
+    el.track.classList.add('dragging');
+    applyBatch();
+    void el.track.offsetWidth;
+    el.track.classList.remove('dragging');
+  }
+
+  function setCategory(id) {
+    if (id === S.category) return;
+    S.category = id;
+    S.batch = 0;
+    el.tabs.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.cat === id)));
+    buildPages();
+    sfx.slide();
+    track('category_selected', { category: id });
+    announce(`${catName()}: ${S.pages.flat().length} pins`);
   }
 
   function updateSlot(id) {
@@ -161,9 +205,10 @@
     const q = qty(id), max = maxFor(id);
     node.classList.toggle('in-cart', q > 0);
     node.classList.toggle('is-soldout', availableStock(id) <= 0);
-    node.querySelector('.qty').textContent = q;
     node.querySelector('.qty-badge').textContent = q ? '×' + q : '';
-    node.querySelector('[data-act="dec"]').disabled = q === 0;
+    const minus = node.querySelector('[data-act="dec"]');
+    minus.disabled = q === 0;
+    minus.tabIndex = q === 0 ? -1 : 0;
     const plus = node.querySelector('[data-act="inc"]');
     plus.disabled = availableStock(id) <= 0;
     plus.classList.toggle('at-max', q >= max && max > 0);
@@ -189,19 +234,19 @@
       d.classList.toggle('on', j === S.batch);
       if (j === S.batch) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current');
     });
-    el.batchLabel.textContent = `${BATCHES[S.batch].name} · ${S.batch + 1}/${BATCHES.length}`;
+    el.batchLabel.textContent = `page ${S.batch + 1}/${S.pages.length}`;
     el.prev.disabled = S.batch === 0;
-    el.next.disabled = S.batch === BATCHES.length - 1;
+    el.next.disabled = S.batch >= S.pages.length - 1;
   }
 
   function setBatch(i, source = 'button') {
-    if (i < 0 || i >= BATCHES.length) { applyBatch(); sfx.err(); return; }
+    if (i < 0 || i >= S.pages.length) { applyBatch(); sfx.err(); return; }
     if (i === S.batch) { applyBatch(); return; }
     S.batch = i;
     applyBatch();
     sfx.slide();
-    track('product_batch_changed', { batch: i + 1, name: BATCHES[i].name, source });
-    announce(`${BATCHES[i].name}, batch ${i + 1} of ${BATCHES.length}`);
+    track('product_batch_changed', { batch: i + 1, category: S.category, source });
+    announce(`${catName()}, page ${i + 1} of ${S.pages.length}`);
   }
 
   /* =========================================================
@@ -216,7 +261,7 @@
   }
 
   function frame(r, o = {}) {
-    const vw = window.innerWidth, vh = window.innerHeight;
+    const vw = el.viewport.clientWidth, vh = el.viewport.clientHeight;
     const pad = o.pad != null ? o.pad : Math.max(10, Math.min(28, vw * 0.03));
     const top = pad + (o.top || 0), bottom = pad + (o.bottom || 0);
     const s = Math.min((vw - pad * 2) / r.w, (vh - top - bottom) / r.h, o.max || 1.5);
@@ -231,16 +276,25 @@
     const small = window.innerHeight < 460;
     const hudB = v === 'payment' ? 0 : small ? 44 : 64;
     if (v === 'home') {
-      frame({ x: 0, y: 0, w: el.machine.offsetWidth, h: el.machine.offsetHeight + 30 }, { max: 1, top: small ? 30 : 46, bottom: hudB });
+      if (isPortrait() || matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
+        // Keep the complete cabinet between the fixed controls on phone screens.
+        const hintBottom = el.hint.hidden ? 0 : el.hint.getBoundingClientRect().bottom;
+        const top = Math.max(hintBottom, el.mute.getBoundingClientRect().bottom) + 2;
+        const bottom = el.viewport.clientHeight - el.chipReceipt.getBoundingClientRect().top + 2;
+        frame({ x: -6, y: -6, w: el.machine.offsetWidth + 30, h: el.machine.offsetHeight + 20 }, { max: 1.25, pad: 2, top, bottom });
+      } else {
+        frame({ x: -6, y: -6, w: el.machine.offsetWidth + 12, h: el.machine.offsetHeight + 22 }, { max: 1.25, pad: 8, top: small ? 12 : 18, bottom: small ? 12 : 18 });
+      }
     } else if (v === 'window') {
-      const r = rectOf(el.win), px = isPortrait() ? 26 : 44;
+      const r = rectOf(el.win), px = isPortrait() ? 26 : 50;
       frame({ x: r.x - px, y: r.y - 18, w: r.w + px * 2, h: r.h + 36 }, { max: 1.45, bottom: hudB });
     } else if (v === 'receipt') {
       const r = rectOf(el.rWrap), h = el.receipt.offsetHeight;
       frame({ x: r.x - 20, y: r.y - 58, w: r.w + 40, h: h + 58 + 28 }, { max: 2.4, bottom: hudB });
     } else if (v === 'payment') {
       const p = rectOf(el.panel), d = rectOf(el.drawer);
-      frame({ x: p.x - 14, y: p.y - 14, w: p.w + 28, h: d.y + el.drawer.offsetHeight - p.y + 28 }, { max: 1.7, pad: 10 });
+      const left = Math.min(p.x, d.x), right = Math.max(p.x + p.w, d.x + d.w);
+      frame({ x: left - 14, y: p.y - 14, w: right - left + 28, h: d.y + el.drawer.offsetHeight - p.y + 28 }, { max: 1.7, pad: 10 });
     }
   }
 
@@ -291,31 +345,33 @@
   /* =========================================================
      LCD + QR SCREEN
      ========================================================= */
+  // TOTAL display: small label line (shows quick messages) + big running total.
   let lcdTimer;
   function lcdIdle() {
-    if (lcdTimer) return; // a flash message is showing
     const t = totals();
-    el.lcdText.textContent = t.count ? `${t.count} PIN${t.count > 1 ? 'S' : ''} · PHP ${t.subtotal} · PRESS RECEIPT` : 'HELLO! PICK A PIN <3';
-    el.lcd.classList.add('marquee');
+    const amt = t.subtotal.toFixed(2);
+    el.lcdTotal.textContent = amt;
+    el.lcdTotal.dataset.ghost = amt.replace(/\d/g, '8'); // unlit "8" segments behind the digits
+    el.lcdQty.textContent = 'QTY ' + String(t.count).padStart(2, '0');
+    if (lcdTimer) return; // a flash message is showing
+    el.lcd.classList.remove('flash');
+    el.lcdText.textContent = t.count ? 'SUBTOTAL' : 'READY';
   }
   function lcdFlash(msg, ms = 1400) {
     clearTimeout(lcdTimer);
-    el.lcd.classList.remove('marquee');
+    el.lcd.classList.add('flash');
     el.lcdText.textContent = msg;
     lcdTimer = setTimeout(() => { lcdTimer = null; lcdIdle(); }, ms);
   }
 
   function qrIdle() {
-    el.qr.className = 'qr-screen';
-    el.qr.innerHTML = '<div class="qr-idle"><b>QR CODE</b><small>scan to pay</small></div>';
+    el.qr.innerHTML = '<span class="qr-title">QR CODE</span><span class="qr-ph" aria-hidden="true">♡</span><span class="qr-sub">scan at checkout</span>';
   }
   function qrShow(seed, amount) {
-    el.qr.className = 'qr-screen live';
-    el.qr.innerHTML = `${qrSVG(seed)}<div class="qr-side"><b>SCAN</b>to pay<span>${money(amount)}</span></div>`;
+    el.qr.innerHTML = `<span class="qr-title">SCAN TO PAY</span>${qrSVG(seed)}<span class="qr-amt">${money(amount)}</span>`;
   }
   function qrThanks() {
-    el.qr.className = 'qr-screen';
-    el.qr.innerHTML = '<div class="qr-thanks">THANK<br>YOU &lt;3</div>';
+    el.qr.innerHTML = '<span class="qr-title">QR CODE</span><div class="qr-thanks">THANK<br>YOU &lt;3</div>';
   }
   function qrSVG(seed) {
     const N = 25;
@@ -379,55 +435,62 @@
       const p = byId[l.id], flag = cart.flagged[l.id], so = flag === 'soldout';
       const amt = money(l.qty * p.price);
       return `<li class="r-line${so ? ' is-flagged' : ''}">
-        <span class="r-thumb">${pinSVG(p)}</span>
         <div class="r-info">
           <b class="r-name">${p.name}</b>
           <span class="r-calc">${l.qty} × ${money(p.price)}</span>
           ${so ? '<em class="r-flag">sold out · not charged</em>' : flag === 'reduced' ? `<em class="r-flag">only ${l.qty} left · qty updated</em>` : ''}
-          <span class="r-ctrls">
-            <button data-act="dec" data-id="${l.id}" aria-label="One less ${p.name}" ${so ? 'disabled' : ''}>−</button>
-            <button data-act="inc" data-id="${l.id}" aria-label="One more ${p.name}" ${so || l.qty >= maxFor(l.id) ? 'disabled' : ''}>+</button>
-            <button data-act="del" data-id="${l.id}" aria-label="Remove ${p.name} from order">✕</button>
-          </span>
         </div>
         <span class="r-amt">${so ? `<s>${amt}</s>` : amt}</span>
+        <div class="r-edit-row">
+          <span class="r-ctrls" role="group" aria-label="${p.name} quantity">
+            <button data-act="dec" data-id="${l.id}" aria-label="One less ${p.name}" ${so ? 'disabled' : ''}>−</button>
+            <span class="r-qty" aria-label="Quantity ${l.qty}">${l.qty}</span>
+            <button data-act="inc" data-id="${l.id}" aria-label="One more ${p.name}" ${so || l.qty >= maxFor(l.id) ? 'disabled' : ''}>+</button>
+          </span>
+          <button class="r-remove" data-act="del" data-id="${l.id}" aria-label="Remove ${p.name} from order">remove</button>
+        </div>
       </li>`;
     }).join('');
     el.receipt.innerHTML = `
-      <div class="r-head"><p class="r-brand">KL!KPIN</p><p class="r-sub">button pin machine ✿</p></div>
+      <div class="r-head"><p class="r-brand">KL!KPIN</p><p class="r-sub">BUTTON PIN MACHINE</p></div>
       <p class="r-meta"><span>ORDER #${S.checkout.orderId || '-----'}</span><span>${date} · ${time}</span></p>
-      <h2 class="r-title" id="rTitle" tabindex="-1">~ your receipt ~</h2>
+      <h2 class="r-title" id="rTitle" tabindex="-1">ORDER RECEIPT</h2>
+      <p class="r-columns"><span>ITEM / QTY</span><span>AMOUNT</span></p>
       ${ls.length ? `<ul class="r-lines">${items}</ul>` : '<p class="r-empty">no pins yet ♡<br>go back and add one!</p>'}
       <div class="r-tot">
-        <p><span>subtotal · ${t.count} pin${t.count === 1 ? '' : 's'}</span><span>${money(t.subtotal)}</span></p>
-        <p class="r-grand"><span>TOTAL</span><span>${money(t.subtotal)}</span></p>
+        <p class="r-count"><span>ITEMS</span><span>${t.count}</span></p>
+        <p class="r-grand"><b>TOTAL DUE</b><strong>${money(t.subtotal)}</strong></p>
       </div>
+      <div class="r-barcode" aria-hidden="true"></div>
+      <p class="r-thanks">a little pin, a little joy ♡<br>THANK YOU FOR STOPPING BY!</p>
       <div class="r-actions">
         <button class="r-btn primary" data-act="confirm" ${t.count ? '' : 'disabled'}>Confirm order ♡</button>
         <button class="r-btn" data-act="edit">← edit order</button>
-      </div>
-      <div class="r-barcode" aria-hidden="true"></div>
-      <p class="r-thanks">thank you, come again ♡</p>`;
+      </div>`;
   }
 
   function printReceipt() {
     renderReceipt();
-    el.rWrap.classList.remove('adjust', 'retract');
+    el.rWrap.classList.remove('printing', 'unrolling', 'adjust', 'retract');
+    el.receipt.inert = true;
+    el.rWrap.style.setProperty('--receipt-height', el.receipt.offsetHeight + 'px');
+    el.rWrap.style.height = '0px';
     void el.rWrap.offsetWidth;
     el.rWrap.classList.add('printing');
     el.rWrap.style.height = el.receipt.offsetHeight + 'px';
     sfx.print();
-    lcdFlash('PRINTING...', 1800);
+    lcdFlash('PRINTING...', 2300);
   }
   function retractReceipt() {
-    el.rWrap.classList.remove('printing', 'adjust');
+    el.rWrap.classList.remove('printing', 'unrolling', 'adjust');
     el.rWrap.style.height = '0px';
   }
   function afterReceiptEdit() {
     const a = document.activeElement;
     const keep = a && el.receipt.contains(a) && a.dataset ? { act: a.dataset.act, id: a.dataset.id } : null;
     renderReceipt();
-    el.rWrap.classList.remove('printing');
+    el.rWrap.classList.remove('printing', 'unrolling');
+    el.receipt.inert = false;
     el.rWrap.classList.add('adjust');
     el.rWrap.style.height = el.receipt.offsetHeight + 'px';
     frameView();
@@ -708,55 +771,70 @@
       d.innerHTML = pinSVG(byId[id]);
       d.style.cssText = `left:${startX + i * step}px;width:${size}px;height:${size}px;--rot:${Math.round(Math.random() * 50 - 25)}deg;animation-delay:${reduce ? 0 : i * 130}ms`;
       el.tray.appendChild(d);
-      later(() => sfx.thunk(), i * 130 + 500);
+      if (!reduce || i === 0) later(() => {
+        if (el.tray.contains(d)) sfx.thunk();
+      }, i * 130 + 437);
     });
     el.push.classList.add('has-pins');
+    const firstPin = el.tray.firstElementChild;
+    later(() => {
+      if (!firstPin || !el.tray.contains(firstPin)) return;
+      const r = el.flap.getBoundingClientRect();
+      burst(r.left + r.width / 2, r.top + r.height * .65, [], { small: true });
+    }, 437);
+    later(() => {
+      if (firstPin && el.tray.contains(firstPin)) sfx.ding();
+    }, Math.max(0, shown.length - 1) * 130 + 1150);
     el.flap.setAttribute('aria-label', `Push the flap to collect your ${ids.length} pin${ids.length === 1 ? '' : 's'}`);
     toast('Your pins dropped! Push the flap to collect ♡', 3600);
   }
 
   function collect() {
+    if (el.flap.classList.contains('open')) return;
+    const duration = reduce ? 60 : 1050;
+    el.flap.style.setProperty('--flap-duration', `${duration}ms`);
+    el.flap.classList.add('open');
+    setTimeout(() => el.flap.classList.remove('open'), duration);
     if (!el.push.classList.contains('has-pins')) {
-      el.flap.classList.add('open');
-      setTimeout(() => el.flap.classList.remove('open'), 380);
       toast('Nothing here yet — pick some pins first ♡');
       sfx.key();
       return;
     }
     const ids = [...el.tray.querySelectorAll('.drop-pin')].map((_, i) => S.lastOrder.lines.flatMap((l) => Array(l.qty).fill(l.id))[i]);
-    el.flap.classList.add('open');
-    sfx.collect();
-    const r = el.flap.getBoundingClientRect();
-    burst(r.left + r.width / 2, r.top + r.height / 2, ids);
+    setTimeout(() => {
+      sfx.collect();
+      const r = el.flap.getBoundingClientRect();
+      burst(r.left + r.width / 2, r.top + r.height / 2, ids);
+    }, duration * .55);
     setTimeout(() => {
       el.tray.innerHTML = '';
       el.push.classList.remove('has-pins');
-      el.flap.classList.remove('open');
       el.flap.setAttribute('aria-label', 'Push the flap to collect your pins');
-    }, 700);
+    }, duration * .72);
     toast(`Enjoy your pins! ♡ Order #${S.lastOrder.orderId}`, 3200);
     track('pins_collected', { orderId: S.lastOrder.orderId });
   }
 
-  function burst(x, y, ids) {
+  function burst(x, y, ids, { small = false } = {}) {
     if (reduce) return;
     const colors = ['#ff7fa7', '#ffe066', '#7ed8b1', '#b9a7ff', '#7cc8ff'];
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < (small ? 14 : 30); i++) {
       const d = document.createElement('span');
       d.className = 'confetti-bit';
-      if (i < Math.min(ids.length, 10)) { d.classList.add('is-pin'); d.innerHTML = pinSVG(byId[ids[i]]); }
+      if (small) { d.textContent = i % 2 ? '✦' : '♡'; d.style.color = colors[i % 5]; }
+      else if (i < Math.min(ids.length, 10)) { d.classList.add('is-pin'); d.innerHTML = pinSVG(byId[ids[i]]); }
       else if (i % 3 === 0) { d.textContent = '♡'; d.style.color = colors[i % 5]; }
       else d.style.background = colors[i % 5];
       d.style.left = x + 'px'; d.style.top = y + 'px';
       el.confetti.appendChild(d);
       const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.4;
-      const dist = 140 + Math.random() * 280;
+      const dist = small ? 50 + Math.random() * 70 : 140 + Math.random() * 280;
       const dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist;
       const anim = d.animate([
         { transform: 'translate(-50%,-50%) scale(.3) rotate(0deg)', opacity: 1 },
         { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1) rotate(${Math.random() * 360 - 180}deg)`, opacity: 1, offset: 0.55 },
-        { transform: `translate(calc(-50% + ${dx * 1.15}px), calc(-50% + ${dy + 260}px)) scale(.9) rotate(${Math.random() * 720 - 360}deg)`, opacity: 0 },
-      ], { duration: 1400 + Math.random() * 700, easing: 'cubic-bezier(.2,.7,.3,1)' });
+        { transform: `translate(calc(-50% + ${dx * 1.15}px), calc(-50% + ${dy + (small ? 90 : 260)}px)) scale(.9) rotate(${Math.random() * 720 - 360}deg)`, opacity: 0 },
+      ], { duration: small ? 850 + Math.random() * 250 : 1400 + Math.random() * 700, easing: 'cubic-bezier(.2,.7,.3,1)' });
       anim.onfinish = () => d.remove();
     }
   }
@@ -791,7 +869,23 @@
       slide() { tone(480, 0.16, 'sine', 0.05, 0, 820); },
       key() { tone(1000 + Math.random() * 400, 0.05, 'square', 0.025); },
       zoom() { tone(380, 0.28, 'sine', 0.03, 0, 720); },
-      print() { for (let i = 0; i < 12; i++) tone(170 + Math.random() * 70, 0.05, 'sawtooth', 0.022, i * 0.13); },
+      print() { // soft continuous paper-feed whirr
+        if (S.muted) return;
+        const c = ac(); if (!c) return;
+        const t = c.currentTime, d = 2.3;
+        const o = c.createOscillator(), lfo = c.createOscillator(), lg = c.createGain(), g = c.createGain(), f = c.createBiquadFilter();
+        o.type = 'sawtooth'; o.frequency.value = 120;
+        lfo.frequency.value = 9; lg.gain.value = 14;
+        lfo.connect(lg).connect(o.frequency);
+        f.type = 'lowpass'; f.frequency.value = 700;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.03, t + 0.25);
+        g.gain.setValueAtTime(0.03, t + d - 0.5);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        o.connect(f).connect(g).connect(c.destination);
+        o.start(t); lfo.start(t); o.stop(t + d + 0.05); lfo.stop(t + d + 0.05);
+      },
+      ding() { tone(1568, 0.12, 'sine', 0.05); tone(2093, 0.25, 'sine', 0.04, 0.08); },
       err() { tone(240, 0.16, 'square', 0.035); tone(190, 0.2, 'square', 0.035, 0.12); },
       success() { [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.2, 'triangle', 0.08, i * 0.1)); },
       thunk() { tone(150, 0.13, 'sine', 0.1, 0, 70); },
@@ -840,26 +934,57 @@
     }).join('');
   }
 
+  const STAR5 = (() => {
+    const p = [];
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 11 : 24;
+      p.push((30 + r * Math.cos(a)).toFixed(1) + ' ' + (31 + r * Math.sin(a)).toFixed(1));
+    }
+    return 'M' + p.join('L') + 'Z';
+  })();
+  const FLOWER = (() => {
+    let d = '';
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+      const x = 30 + 13 * Math.cos(a), y = 30 + 13 * Math.sin(a);
+      d += `M${(x + 10).toFixed(1)} ${y.toFixed(1)}a10 10 0 1 0 -20 0a10 10 0 1 0 20 0z`;
+    }
+    return d;
+  })();
   const STICKERS = {
     heart: { d: 'M30 52C10 40 6 26 14 18c6-6 13-3 16 2 3-5 10-8 16-2 8 8 4 22-16 34z', fill: '#ff8fb1', face: [30, 31, 0.5], shine: 'M15 24q2-5 7-6' },
-    diamond: { d: 'M30 5 53 30 30 55 7 30z', fill: '#ffe27a', shine: 'M22 22l6-7' },
-    ring: { d: 'M30 9a21 21 0 1 0 .01 0zM30 21a9 9 0 1 1-.01 0z', fill: '#8fe3be', rule: 'evenodd', shine: 'M15 22q3-6 9-9' },
-    square: { d: 'M14 10h32a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4z', fill: '#c9b8ff', face: [30, 32, 0.55], shine: 'M15 20q1-4 5-5' },
-    circle: { d: 'M30 8a22 22 0 1 0 .01 0z', fill: '#ffc29f', face: [30, 31, 0.55], shine: 'M15 22q3-6 9-9' },
-    square2: { d: 'M14 10h32a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V14a4 4 0 0 1 4-4z', fill: '#a9dcff', shine: 'M15 20q1-4 5-5' },
+    star: { d: STAR5, fill: '#ffe27a', shine: 'M24 22l3-6' },
+    sparkle: { d: 'M30 4Q33 27 56 30Q33 33 30 56Q27 33 4 30Q27 27 30 4Z', fill: '#bfe3ff', shine: 'M28 16v6' },
+    rect: { d: 'M10 18h40a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z', fill: '#bfe3ff', shine: 'M12 24h8' },
+    rectY: { d: 'M10 18h40a4 4 0 0 1 4 4v16a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z', fill: '#ffe98f', shine: 'M12 24h8' },
+    flower: { d: FLOWER, fill: '#fff', center: true, shine: 'M22 14q3-3 6-3' },
   };
   function buildStickers() {
     document.querySelectorAll('.sticker').forEach((node) => {
       const s = STICKERS[node.dataset.shape];
-      const r = s.rule ? `fill-rule="${s.rule}"` : '';
       node.innerHTML = `<svg viewBox="0 0 60 60">
-        <path d="${s.d}" ${r} fill="none" stroke="#2c2554" stroke-width="11" stroke-linejoin="round"/>
-        <path d="${s.d}" ${r} fill="#fff" stroke="#fff" stroke-width="7" stroke-linejoin="round"/>
-        <path d="${s.d}" ${r} fill="${s.fill}"/>
+        <path d="${s.d}" fill="#2c2554" stroke="#2c2554" stroke-width="11" stroke-linejoin="round"/>
+        <path d="${s.d}" fill="#fff" stroke="#fff" stroke-width="7" stroke-linejoin="round"/>
+        <path d="${s.d}" fill="${s.fill}" ${s.center ? 'stroke="#2c2554" stroke-width="1.5"' : ''}/>
+        ${s.center ? '<circle cx="30" cy="30" r="9" fill="#ffd84d" stroke="#2c2554" stroke-width="2.5"/>' : ''}
         ${s.face ? face(...s.face) : ''}
         <path d="${s.shine}" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".85"/>
       </svg>`;
     });
+    // little cat peeking over the barcode on the side panel
+    el.catSticker.innerHTML = `<svg viewBox="0 0 60 60">
+      <g stroke-linejoin="round">
+        <path d="M12 26 14 8l14 10zM48 26 46 8 32 18z" fill="#2c2554" stroke="#2c2554" stroke-width="10"/>
+        <ellipse cx="30" cy="34" rx="22" ry="18" fill="#2c2554" stroke="#2c2554" stroke-width="10"/>
+        <path d="M12 26 14 8l14 10zM48 26 46 8 32 18z" fill="#fff" stroke="#fff" stroke-width="6"/>
+        <ellipse cx="30" cy="34" rx="22" ry="18" fill="#fff" stroke="#fff" stroke-width="6"/>
+        <path d="M12 26 14 8l14 10zM48 26 46 8 32 18z" fill="#fff" stroke="#3b2a4a" stroke-width="2"/>
+        <ellipse cx="30" cy="34" rx="22" ry="18" fill="#fff" stroke="#3b2a4a" stroke-width="2"/>
+        <path d="M40 18q8-6 7 8q-6-2-7-8z" fill="#ffb36b"/>
+        <path d="M16 13 17 21l6-4z" fill="#ffb3c8"/>
+      </g>
+      ${face(30, 35, 0.75)}
+    </svg>`;
   }
 
   function buildKeys() {
@@ -934,7 +1059,7 @@
     }
     drag.dx = dx / S.camScale;
     let off = drag.dx;
-    if ((S.batch === 0 && off > 0) || (S.batch === BATCHES.length - 1 && off < 0)) off *= 0.35;
+    if ((S.batch === 0 && off > 0) || (S.batch === S.pages.length - 1 && off < 0)) off *= 0.35;
     el.track.style.transform = `translateX(calc(${-S.batch * 100}% + ${off}px))`;
   });
   function endDrag(e) {
@@ -978,7 +1103,32 @@
   el.chipReceipt.addEventListener('click', () => openReceipt('chip'));
   el.chipHome.addEventListener('click', () => setView('home', { focus: true }));
   el.flap.addEventListener('click', collect);
-  el.coin.addEventListener('click', () => { sfx.coin(); toast('No coins needed — this machine takes online payment ♡'); });
+  el.tabs.addEventListener('click', (e) => { const t = e.target.closest('.tab'); if (t) setCategory(t.dataset.cat); });
+  el.rWrap.addEventListener('animationend', (e) => {
+    if (e.target !== el.rWrap || e.animationName !== 'receipt-processing' || S.view !== 'receipt') return;
+    el.rWrap.classList.remove('printing');
+    el.rWrap.classList.add('unrolling');
+    lcdFlash('UNROLLING...', 850);
+  });
+  el.receipt.addEventListener('animationend', (e) => {
+    if (e.target !== el.receipt || e.animationName !== 'receipt-unroll' || S.view !== 'receipt') return;
+    el.rWrap.classList.remove('unrolling');
+    el.receipt.inert = false;
+    sfx.ding();
+    $('#rTitle').focus({ preventScroll: true });
+    if (el.rWrap.offsetHeight !== el.receipt.offsetHeight) {
+      el.rWrap.classList.add('adjust');
+      el.rWrap.style.height = el.receipt.offsetHeight + 'px';
+    }
+  });
+  // keep the receipt fully visible if fonts nudge its height after printing
+  el.rWrap.addEventListener('transitionend', (e) => {
+    if (e.target !== el.rWrap || e.propertyName !== 'height' || S.view !== 'receipt') return;
+    if (el.rWrap.offsetHeight !== el.receipt.offsetHeight) {
+      el.rWrap.classList.add('adjust');
+      el.rWrap.style.height = el.receipt.offsetHeight + 'px';
+    }
+  });
   el.mute.addEventListener('click', () => { S.muted = !S.muted; store.set('klikpin_muted', S.muted); applyMute(); sfx.key(); });
 
   // click away from the window to step back
@@ -1011,16 +1161,26 @@
   el.viewport.addEventListener('scroll', () => { el.viewport.scrollTop = 0; el.viewport.scrollLeft = 0; });
 
   let rzT;
-  window.addEventListener('resize', () => {
+  const onResize = () => {
     clearTimeout(rzT);
     rzT = setTimeout(() => {
       root.classList.add('no-anim');
       drawStripes();
-      if (S.view === 'receipt') el.rWrap.style.height = el.receipt.offsetHeight + 'px';
+      if (currentPageSize() !== S.pageSize) {
+        const first = S.pages[S.batch] && S.pages[S.batch][0];
+        buildPages(first);
+      }
+      if (S.view === 'receipt') {
+        el.rWrap.style.height = el.receipt.offsetHeight + 'px';
+        el.rWrap.style.setProperty('--receipt-height', el.receipt.offsetHeight + 'px');
+      }
       frameView();
       requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
     }, 60);
-  });
+  };
+  window.addEventListener('resize', onResize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(el.viewport);
 
   window.addEventListener('pagehide', () => {
     if ((S.view === 'receipt' || S.view === 'payment') && lines().length) track('checkout_abandoned', { view: S.view, orderId: S.checkout.orderId });
@@ -1032,9 +1192,8 @@
   function init() {
     buildStickers();
     buildKeys();
-    buildWindow();
-    PINS.forEach((p) => updateSlot(p.id));
-    applyBatch();
+    buildTabs();
+    buildPages();
     qrIdle();
     lcdIdle();
     drawStripes();

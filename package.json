@@ -2,8 +2,12 @@
   "name": "klikpin",
   "version": "1.0.0",
   "private": true,
+  "description": "KL!KPIN — interactive button pin vending machine shop",
+  "type": "module",
   "scripts": {
-    "dev": "vite"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^8.3.5"
