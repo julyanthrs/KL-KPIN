@@ -57,7 +57,7 @@ button { font-family: inherit; color: inherit; }
   outline-offset: 3px;
 }
 
-/* ---------- scenery: far layer (fixed) ---------- */
+/* ---------- scenery: sky layer (fixed) ---------- */
 .room {
   position: fixed;
   inset: 0;
@@ -67,6 +67,7 @@ button { font-family: inherit; color: inherit; }
     linear-gradient(180deg, #d6ecff 0%, #e6e0ff 42%, #fbe3f0 72%, #ffe9ef 100%);
 }
 .room > * { position: absolute; display: block; }
+.room > .defs { width: 0; height: 0; }
 .sun {
   right: 2.5%; top: 15%;
   width: clamp(70px, 9vw, 140px); aspect-ratio: 1;
@@ -81,16 +82,15 @@ button { font-family: inherit; color: inherit; }
 .cloud.c2 { left: 30%; top: 4%; width: clamp(80px, 10vw, 160px); animation-duration: 32s; animation-delay: -9s; opacity: .9; }
 .cloud.c3 { right: 24%; top: 26%; width: clamp(90px, 12vw, 190px); animation-duration: 22s; animation-delay: -4s; }
 @keyframes drift { from { translate: -24px 0; } to { translate: 24px 0; } }
+@keyframes drift-sm { from { translate: -5px 0; } to { translate: 5px 0; } }
 .birds { left: 17%; top: 30%; width: clamp(48px, 5vw, 80px); }
-.hills { left: 0; bottom: 0; width: 100%; height: 62%; }
 @media (max-aspect-ratio: 1/1) {
-  .sun { right: -4px; top: 17%; width: 52px; }
-  .prop { display: none; } /* no room beside the cabinet on phones */
-  .cloud.c1 { left: -6%; top: 16%; }
+  .sun { right: 3px; top: 17%; width: 52px; }
+  .cloud.c1 { left: 8px; top: 12.5%; width: 56px; animation-name: drift-sm; } /* whole clouds only: no half-cut shapes */
   .cloud.c2 { display: none; }
-  .cloud.c3 { right: -8%; top: 30%; }
+  .cloud.c3 { display: none; } /* would only peek out from behind the cabinet */
   .birds { left: 4%; top: 36%; }
-  .hills { height: 58%; }
+  .land { transform: scale(1.25); } /* taller cabinet, so a taller landscape */
 }
 
 .viewport {
@@ -166,31 +166,20 @@ button { font-family: inherit; color: inherit; }
   background: rgba(44, 37, 84, .1);
   z-index: -1;
 }
-.machine::after { /* grass meadow in front of the hills */
-  content: '';
+/* ---------- scenery: the landscape (moves and zooms with the machine) ----------
+   One continuous illustration: x = 0 is the middle of the cabinet and y = 0 the ground it
+   stands on, so the hills, fence, arch and path always meet the machine without seams.
+   It is far wider and deeper than any screen, so its edges never show. */
+.land {
   position: absolute;
-  left: -1600px; right: -1600px;
-  top: calc(100% - 3px);
-  height: 1400px;
-  border-top: 6px solid var(--ink);
-  background:
-    radial-gradient(ellipse 14px 8px, #9fdcbf 60%, transparent 64%) 0 30px / 150px 90px,
-    radial-gradient(ellipse 10px 6px, #b4e6cd 60%, transparent 64%) 75px 75px / 150px 90px,
-    linear-gradient(180deg, #c4f0dc, #d8f6e7 60%, #e4f8ee);
+  left: calc(50% - 6000px);
+  top: calc(100% - 2600px);
+  width: 12000px; height: 6600px;
+  transform-origin: 6000px 2600px;
   z-index: -3;
+  overflow: visible;
+  pointer-events: none;
 }
-
-/* ---------- scenery: near layer (moves with the machine) ---------- */
-.plaza { /* the pink checker floor, now a tiled plaza in front of the machine */
-  position: absolute;
-  left: calc(50% - 1300px);
-  top: calc(100% - 3px);
-  width: 2600px; height: 600px;
-  z-index: -2;
-}
-.prop { position: absolute; bottom: -14px; z-index: -1; overflow: visible; }
-.prop-l { right: calc(100% + 40px); width: 560px; height: 330px; }
-.prop-r { left: calc(100% + 30px); width: 560px; height: 360px; }
 
 .shell {
   position: absolute;
