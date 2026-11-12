@@ -36,8 +36,8 @@
     prev: $('#prevBatch'), next: $('#nextBatch'),
     panel: $('#panel'), lcd: $('#lcd'), lcdText: $('#lcdText'), lcdTotal: $('#lcdTotal'), lcdQty: $('#lcdQty'), keys: $('#keys'),
     receiptKey: $('#receiptKey'), rkCount: $('#rkCount'), qr: $('#qrScreen'),
-    rWrap: $('#receiptWrap'), receipt: $('#receipt'), drawer: $('#drawer'), payBody: $('#payBody'),
-    push: $('#pushDoor'), tray: $('#tray'), flap: $('#flap'), stripes: $('#stripes'), catSticker: $('#catSticker'),
+    rWrap: $('#receiptWrap'), receipt: $('#receipt'), payModal: $('#payModal'), payCard: $('#payCard'), payBody: $('#payBody'),
+    push: $('#pushDoor'), tray: $('#tray'), flap: $('#flap'), stripes: $('#stripes'), topper: document.querySelector('.topper'),
     chipHome: $('#chipHome'), chipReceipt: $('#chipReceipt'), chipCount: $('#chipCount'),
     hint: $('#hint'), mute: $('#muteBtn'), toast: $('#toast'), sr: $('#sr'), confetti: $('#confetti'),
   };
@@ -252,7 +252,8 @@
   /* =========================================================
      CAMERA (FR-01, FR-02, FR-11, FR-16)
      ========================================================= */
-  const isPortrait = () => getComputedStyle(el.machine).getPropertyValue('--cols').trim() === '2';
+  const mqPortrait = matchMedia('(max-aspect-ratio: 1/1)');
+  const isPortrait = () => mqPortrait.matches;
 
   function rectOf(node) {
     let x = 0, y = 0, n = node;
@@ -276,25 +277,25 @@
     const small = window.innerHeight < 460;
     const hudB = v === 'payment' ? 0 : small ? 44 : 64;
     if (v === 'home') {
+      // the logo sign (+ the cat peeking over it) sits above the cabinet on phones
+      const lift = el.topper && el.topper.offsetHeight ? el.topper.offsetHeight - 8 + 64 : 0;
+      // Keep the complete cabinet between the fixed controls (hint + sound on top,
+      // Receipt chip at the bottom) so nothing floats over the machine.
+      const hintBottom = el.hint.hidden ? 0 : el.hint.getBoundingClientRect().bottom;
+      const top = Math.max(hintBottom, el.mute.getBoundingClientRect().bottom) + 2;
+      const bottom = el.viewport.clientHeight - el.chipReceipt.getBoundingClientRect().top + 2;
       if (isPortrait() || matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
-        // Keep the complete cabinet between the fixed controls on phone screens.
-        const hintBottom = el.hint.hidden ? 0 : el.hint.getBoundingClientRect().bottom;
-        const top = Math.max(hintBottom, el.mute.getBoundingClientRect().bottom) + 2;
-        const bottom = el.viewport.clientHeight - el.chipReceipt.getBoundingClientRect().top + 2;
-        frame({ x: -6, y: -6, w: el.machine.offsetWidth + 30, h: el.machine.offsetHeight + 20 }, { max: 1.25, pad: 2, top, bottom });
+        frame({ x: -6, y: -6 - lift, w: el.machine.offsetWidth + 30, h: el.machine.offsetHeight + 20 + lift }, { max: 1.25, pad: 2, top, bottom });
       } else {
-        frame({ x: -6, y: -6, w: el.machine.offsetWidth + 12, h: el.machine.offsetHeight + 22 }, { max: 1.25, pad: 8, top: small ? 12 : 18, bottom: small ? 12 : 18 });
+        frame({ x: -6, y: -6 - lift, w: el.machine.offsetWidth + 12, h: el.machine.offsetHeight + 22 + lift }, { max: 1.25, pad: 4, top, bottom });
       }
     } else if (v === 'window') {
       const r = rectOf(el.win), px = isPortrait() ? 26 : 50;
       frame({ x: r.x - px, y: r.y - 18, w: r.w + px * 2, h: r.h + 36 }, { max: 1.45, bottom: hudB });
-    } else if (v === 'receipt') {
+    } else if (v === 'receipt' || v === 'payment') {
+      // the payment pop-up floats over the printed receipt (blurred behind the glass)
       const r = rectOf(el.rWrap), h = el.receipt.offsetHeight;
-      frame({ x: r.x - 20, y: r.y - 58, w: r.w + 40, h: h + 58 + 28 }, { max: 2.4, bottom: hudB });
-    } else if (v === 'payment') {
-      const p = rectOf(el.panel), d = rectOf(el.drawer);
-      const left = Math.min(p.x, d.x), right = Math.max(p.x + p.w, d.x + d.w);
-      frame({ x: left - 14, y: p.y - 14, w: right - left + 28, h: d.y + el.drawer.offsetHeight - p.y + 28 }, { max: 1.7, pad: 10 });
+      frame({ x: r.x - 20, y: r.y - 58, w: r.w + 40, h: h + 58 + 28 }, { max: 2.4, bottom: v === 'payment' ? 0 : hudB });
     }
   }
 
@@ -306,11 +307,11 @@
     document.body.dataset.view = v;
     el.winInner.inert = v !== 'window';
     el.receipt.inert = v !== 'receipt';
-    el.drawer.inert = v !== 'payment';
     if (v !== 'window') S.hoverZoom = false;
-    if (prev === 'receipt' && v !== 'receipt') retractReceipt();
-    if (v !== 'payment') el.panel.classList.remove('drawer-open');
-    if (v === 'receipt' && prev !== 'receipt') printReceipt();
+    const paperOut = (x) => x === 'receipt' || x === 'payment';
+    if (paperOut(prev) && !paperOut(v)) retractReceipt();
+    if (v === 'receipt' && (!paperOut(prev) || !el.rWrap.offsetHeight)) printReceipt();
+    toggleModal(v === 'payment');
     updateHUD();
     frameView();
     if (prev !== v) sfx.zoom();
@@ -330,6 +331,23 @@
         if (a && a !== document.body && a.closest('[inert]')) el.winHit.focus({ preventScroll: true });
       }
     });
+  }
+
+  // Payment + final receipt live in one pop-up over a frosted-glass backdrop.
+  let modalT;
+  function toggleModal(open) {
+    const m = el.payModal;
+    clearTimeout(modalT);
+    const hidePage = [el.viewport, document.querySelector('.hud-top'), document.querySelector('.hud-bottom'), el.mute];
+    if (open) {
+      m.classList.remove('closing');
+      m.hidden = false;
+      hidePage.forEach((n) => { if (n) n.inert = true; });
+    } else if (!m.hidden) {
+      m.classList.add('closing');
+      hidePage.forEach((n) => { if (n) n.inert = false; });
+      modalT = setTimeout(() => { m.hidden = true; m.classList.remove('closing'); }, reduce ? 0 : 220);
+    }
   }
 
   function updateHUD() {
@@ -529,16 +547,44 @@
     ['soldout', '✿ a pin sells out'],
   ];
 
+  const DL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg>';
+  const X_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>';
+  const stamp = (iso) => {
+    const d = iso ? new Date(iso) : new Date();
+    return d.toLocaleDateString('en-PH', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' +
+      d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+  };
+
   function renderPay(state, info = {}) {
     S.payState = state;
     const t = totals();
-    const amount = info.order ? info.order.total : t.subtotal;
-    const count = info.order ? info.order.count : t.count;
+    const order = info.order || null;
+    const items = order ? order.lines : payableLines();
+    const amount = order ? order.total : t.subtotal;
+    const orderId = (order && order.orderId) || S.checkout.orderId || '';
+    const paid = state === 'success';
     const m = S.method;
-    const head = `<div class="pay-head">
-        <div><p class="pay-eyebrow" id="payTitle" tabindex="-1">${state === 'success' ? 'paid' : 'total to pay'}</p><p class="pay-total">${money(amount)}</p></div>
-        <p class="pay-meta">${count} pin${count === 1 ? '' : 's'}<br><span>#${(info.order && info.order.orderId) || S.checkout.orderId || ''}</span></p>
+
+    const head = `<header class="pm-head">
+        <h2 class="pm-title" id="payTitle" tabindex="-1">${paid ? 'RECEIPT' : 'PAYMENT'}</h2>
+        <p class="pm-meta">ORDER #${orderId}<br>${stamp(order && order.paidAt)}</p>
+        ${paid ? '<span class="pm-paid" aria-hidden="true">PAID ✓</span>' : ''}
+        ${paid
+          ? `<button class="pm-icon dl" data-act="download" aria-label="Download receipt">${DL_SVG}</button>`
+          : `<button class="pm-icon" data-act="back" aria-label="Close payment and go back to the receipt" ${state === 'busy' ? 'disabled' : ''}>${X_SVG}</button>`}
+      </header>`;
+    const receipt = `<div class="pm-receipt">
+        <ul class="pm-lines" aria-label="Your pins">
+          ${items.map((l) => `<li class="pm-line">
+            <span class="pm-pin" aria-hidden="true">${pinSVG(byId[l.id])}</span>
+            <span class="pm-q">${l.qty}x</span>
+            <span class="pm-name">${l.name}</span>
+            <span class="pm-amt">${money(l.qty * l.price)}</span>
+          </li>`).join('')}
+        </ul>
+        <p class="pm-total"><span>${paid ? 'TOTAL PAID' : 'TOTAL'}</span><strong>${money(amount)}</strong></p>
       </div>`;
+
     let body = '';
     if (state === 'select') {
       body = `<fieldset class="methods"><legend class="sr-only">Choose a payment method</legend>
@@ -550,17 +596,20 @@
       body = `<div class="pay-status" role="status"><span class="pay-spin" aria-hidden="true"></span><p class="ps-big">${info.msg}</p><p class="ps-small">please keep this page open ♡</p></div>`;
     } else if (state === 'awaiting') {
       const qr = m === 'qr';
-      body = `<div class="pay-status" role="status">
-          <p class="ps-big">${qr ? 'Scan the QR on the screen ↑' : m === 'card' ? 'Finish on the secure card page' : 'Finish in your bank app'}</p>
+      body = `${qr ? `<div class="pm-qr">${qrSVG(S.checkout.intentId || S.checkout.orderId)}</div>` : ''}
+        <div class="pay-status" role="status">
+          <p class="ps-big">${qr ? 'Scan this QR to pay' : m === 'card' ? 'Finish on the secure card page' : 'Finish in your bank app'}</p>
           <p class="ps-small">${qr ? 'Open your e-wallet or banking app, scan, then tap “I’ve paid”.' : 'In the live shop the provider’s secure page opens here — the shop never sees your card or bank login.'}</p>
         </div>
         <div class="pay-row"><button class="pay-btn" data-act="done">I’ve paid ♡</button><button class="pay-btn ghost" data-act="cancel">Cancel</button></div>`;
     } else if (state === 'resume') {
       body = `<div class="pay-status" role="status"><p class="ps-big">You have an unfinished payment</p><p class="ps-small">Let’s check it with the provider before anything else — no double charges.</p></div>
         <div class="pay-row"><button class="pay-btn" data-act="resume">Check status</button><button class="pay-btn ghost" data-act="back">Back to receipt</button></div>`;
-    } else if (state === 'success') {
-      body = `<div class="pay-status" role="status"><span class="ok-badge" aria-hidden="true">✓</span><p class="ps-big">Payment confirmed!</p><p class="ps-small">Your pins are dropping into the PUSH door ↓</p></div>
-        <button class="pay-btn" data-act="home">Back to the machine ♡</button>`;
+    } else if (paid) {
+      const meth = (PAY.provider.methods.find((x) => x.id === order.method) || {}).short || 'demo pay';
+      body = `<div class="pay-status" role="status"><span class="ok-badge" aria-hidden="true">✓</span><p class="ps-big">Payment confirmed!</p><p class="ps-small">Paid with ${meth}. Your pins drop into the PUSH door when you close this ♡</p></div>
+        <button class="pay-btn dl-btn" data-act="download">${DL_SVG} Download receipt</button>
+        <button class="pay-btn ghost" data-act="home">Back to the machine ♡</button>`;
     } else {
       const T = {
         failed: ['Payment didn’t go through', 'Nothing was charged and your order is safe. Try again or pick another method.'],
@@ -574,15 +623,132 @@
           ? '<button class="pay-btn" data-act="back">Review receipt</button>'
           : '<button class="pay-btn" data-act="retry">Try again</button><button class="pay-btn ghost" data-act="back">Back to receipt</button>'}</div>`;
     }
-    const foot = state === 'success' ? '' : `<div class="pay-foot">
+    const foot = paid ? '' : `<div class="pay-foot">
         <span>🔒 ${PAY.provider.label}</span>
         <label class="pf-demo">demo: <select id="demoOutcome">${OUTCOMES.map(([v, l]) => `<option value="${v}" ${PAY.getOutcome() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       </div>`;
-    el.payBody.innerHTML = head + `<div class="pay-main">${body}</div>` + foot;
+    el.payBody.innerHTML = head + receipt + `<div class="pay-main">${body}${foot}</div>`;
 
+    // the machine's own QR screen mirrors the pop-up
     if (state === 'awaiting' && m === 'qr') qrShow(S.checkout.intentId || S.checkout.orderId, t.subtotal);
-    else if (state === 'success') qrThanks();
+    else if (paid) qrThanks();
     else if (state !== 'busy') qrIdle();
+  }
+
+  /* ---------- downloadable receipt (PNG drawn on a canvas) ---------- */
+  function svgImage(svg) {
+    return new Promise((res) => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = () => res(null);
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" '));
+    });
+  }
+
+  function receiptCanvas(order, imgs) {
+    const W = 720, PAD = 70, PW = W - PAD * 2, ROW = 78;
+    const H = 380 + order.lines.length * ROW + 340;
+    const cv = document.createElement('canvas');
+    const k = 2;
+    cv.width = W * k; cv.height = H * k;
+    const g = cv.getContext('2d');
+    g.scale(k, k);
+    const INK = '#2c2554', MAROON = '#8e1d39', HOT = '#ff7fa7', GREY = '#68615c';
+
+    // background: lilac → pink with polka dots
+    const bg = g.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#ece0ff'); bg.addColorStop(1, '#ffe4ef');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(255,255,255,.8)';
+    for (let yy = 0, r = 0; yy < H + 36; yy += 18, r++) for (let xx = r % 2 ? 18 : 0; xx < W + 36; xx += 36) { g.beginPath(); g.arc(xx, yy, 3, 0, 7); g.fill(); }
+
+    // paper with a zig-zag bottom edge
+    const top = 40, bottom = H - 54, zig = 14;
+    const paper = () => {
+      g.beginPath();
+      g.moveTo(PAD + 22, top); g.lineTo(PAD + PW - 22, top); g.quadraticCurveTo(PAD + PW, top, PAD + PW, top + 22);
+      g.lineTo(PAD + PW, bottom);
+      for (let xx = PAD + PW; xx > PAD; xx -= zig * 2) { g.lineTo(xx - zig, bottom + zig); g.lineTo(Math.max(PAD, xx - zig * 2), bottom); }
+      g.lineTo(PAD, top + 22); g.quadraticCurveTo(PAD, top, PAD + 22, top); g.closePath();
+    };
+    g.save(); g.translate(10, 12); paper(); g.fillStyle = 'rgba(44,37,84,.15)'; g.fill(); g.restore();
+    paper(); g.fillStyle = '#fffdf6'; g.fill(); g.lineWidth = 6; g.strokeStyle = INK; g.lineJoin = 'round'; g.stroke();
+
+    const cx = W / 2;
+    const text = (s, x, y, font, color = INK, align = 'center') => { g.font = font; g.fillStyle = color; g.textAlign = align; g.fillText(s, x, y); };
+    const dash = (y) => { g.save(); g.setLineDash([8, 7]); g.lineWidth = 2; g.strokeStyle = '#a69e93'; g.beginPath(); g.moveTo(PAD + 30, y); g.lineTo(PAD + PW - 30, y); g.stroke(); g.restore(); };
+
+    // brand: KL!KPIN with the pink bang
+    g.font = '400 64px "Luckiest Guy", Fredoka, sans-serif';
+    const parts = [['KL', MAROON], ['!', HOT], ['KPIN', MAROON]];
+    const tw = parts.reduce((a, [s]) => a + g.measureText(s).width, 0);
+    let x = cx - tw / 2;
+    g.textAlign = 'left';
+    parts.forEach(([s, c]) => { g.fillStyle = '#fff'; g.fillText(s, x + 4, 128); g.fillStyle = c; g.fillText(s, x, 124); x += g.measureText(s).width; });
+    text('BUTTON PIN MACHINE', cx, 160, '400 17px Silkscreen, monospace', '#2a3a92');
+    text(`ORDER #${order.orderId}`, cx, 206, '700 18px "Space Mono", monospace');
+    text(stamp(order.paidAt), cx, 232, '400 16px "Space Mono", monospace', GREY);
+
+    // PAID stamp
+    g.save(); g.translate(PAD + PW - 92, 96); g.rotate(-0.16);
+    g.lineWidth = 4; g.strokeStyle = '#2f8a66'; g.beginPath();
+    if (g.roundRect) g.roundRect(-58, -26, 116, 48, 10); else g.rect(-58, -26, 116, 48);
+    g.stroke();
+    text('PAID', 0, 11, '400 26px Silkscreen, monospace', '#2f8a66');
+    g.restore();
+
+    dash(262);
+    text('YOUR PINS', cx, 296, '700 17px "Space Mono", monospace', GREY);
+    let y = 318;
+    order.lines.forEach((l, i) => {
+      if (imgs[i]) g.drawImage(imgs[i], PAD + 34, y + 8, 56, 56);
+      text(`${l.qty}x`, PAD + 106, y + 45, '700 22px "Space Mono", monospace', HOT, 'left');
+      text(l.name, PAD + 158, y + 45, '600 25px Fredoka, sans-serif', INK, 'left');
+      text(money(l.qty * l.price), PAD + PW - 36, y + 45, '700 22px "Space Mono", monospace', INK, 'right');
+      y += ROW;
+    });
+    y += 8; dash(y); y += 40;
+    text(`ITEMS  ${order.count}`, PAD + 36, y, '400 17px "Space Mono", monospace', GREY, 'left');
+    y += 50;
+    text('TOTAL PAID', PAD + 36, y, '700 22px "Space Mono", monospace', INK, 'left');
+    text(money(order.total), PAD + PW - 36, y + 4, '400 46px "Luckiest Guy", sans-serif', MAROON, 'right');
+    y += 28; dash(y);
+    const meth = (PAY.provider.methods.find((mm) => mm.id === order.method) || {}).short || 'demo pay';
+    text(`paid with ${meth} · ${order.currency}`, cx, y + 40, '400 16px "Space Mono", monospace', GREY);
+    // barcode
+    let bx = cx - 120; const by = y + 64;
+    g.fillStyle = INK;
+    for (let i = 0; bx < cx + 120; i++) { const w = [2, 4, 1, 3, 2, 1][i % 6]; g.fillRect(bx, by, w, 40); bx += w + [2, 3, 2, 4][i % 4]; }
+    text('a little pin, a little joy ♡', cx, by + 80, '600 21px Fredoka, sans-serif', MAROON);
+    return cv;
+  }
+
+  async function downloadReceipt(order) {
+    if (!order) return;
+    try {
+      if (document.fonts && document.fonts.load) {
+        await Promise.all(['40px "Luckiest Guy"', '600 20px Fredoka', '400 20px "Space Mono"', '700 20px "Space Mono"', '20px Silkscreen']
+          .map((f) => document.fonts.load(f).catch(() => {})));
+      }
+      const imgs = await Promise.all(order.lines.map((l) => svgImage(pinSVG(byId[l.id]))));
+      const cv = receiptCanvas(order, imgs);
+      const blob = await new Promise((res) => cv.toBlob(res, 'image/png'));
+      if (!blob) throw new Error('no image');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `klikpin-receipt-${order.orderId}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      track('receipt_downloaded', { orderId: order.orderId });
+      toast('Receipt saved ♡');
+      sfx.ding();
+    } catch (err) {
+      console.error(err);
+      toast('Couldn’t save the receipt — please try again');
+    }
   }
 
   function confirmOrder() {
@@ -593,7 +759,6 @@
     const resume = S.checkout.intentId && S.checkout.status === 'awaiting' && S.checkout.amount === t.subtotal;
     renderPay(resume ? 'awaiting' : 'select');
     setView('payment', { focus: true });
-    later(() => el.panel.classList.add('drawer-open'), 420);
   }
 
   function backToReceipt() {
@@ -604,8 +769,7 @@
       saveCheckout();
     }
     qrIdle();
-    el.panel.classList.remove('drawer-open');
-    later(() => setView('receipt', { focus: true }), 300);
+    setView('receipt', { focus: true });
   }
 
   function applyStockProblems(problems) {
@@ -707,7 +871,6 @@
     else { track('payment_failed', { reason: 'error', message: err && err.message }); renderPay('error', { msg: err && err.message }); }
   }
 
-  let successTimer;
   function onPaid() {
     const ls = payableLines(), t = totals();
     const order = {
@@ -724,12 +887,10 @@
     renderPay('success', { order });
     sfx.success();
     lcdFlash('PAID! THANK YOU <3', 3200);
-    announce(`Payment confirmed. Order ${order.orderId}. Your pins are dropping into the pickup door.`);
-    successTimer = later(finishToHome, 2800);
+    announce(`Payment confirmed. Order ${order.orderId}. You can download your receipt. Close it to collect your pins from the pickup door.`);
   }
 
   function finishToHome() {
-    clearTimeout(successTimer);
     if (S.view !== 'payment' || S.payState !== 'success') return;
     const order = S.lastOrder;
     setView('home', { focus: true });
@@ -746,6 +907,13 @@
     else if (a === 'back') backToReceipt();
     else if (a === 'resume') resumePayment();
     else if (a === 'home') finishToHome();
+    else if (a === 'download') downloadReceipt(S.lastOrder);
+  });
+  // tapping the frosted glass closes the pop-up (when nothing is in flight)
+  el.payModal.addEventListener('click', (e) => {
+    if (e.target.dataset.act !== 'dismiss' || S.paying) return;
+    if (S.payState === 'success') finishToHome();
+    else if (S.payState !== 'busy') backToReceipt();
   });
   el.payBody.addEventListener('change', (e) => {
     if (e.target.name === 'pm') { S.method = e.target.value; sfx.key(); }
@@ -972,7 +1140,7 @@
       </svg>`;
     });
     // little cat peeking over the barcode on the side panel
-    el.catSticker.innerHTML = `<svg viewBox="0 0 60 60">
+    const catSVG = `<svg viewBox="0 0 60 60">
       <g stroke-linejoin="round">
         <path d="M12 26 14 8l14 10zM48 26 46 8 32 18z" fill="#2c2554" stroke="#2c2554" stroke-width="10"/>
         <ellipse cx="30" cy="34" rx="22" ry="18" fill="#2c2554" stroke="#2c2554" stroke-width="10"/>
@@ -985,6 +1153,7 @@
       </g>
       ${face(30, 35, 0.75)}
     </svg>`;
+    document.querySelectorAll('.cat-sticker').forEach((n) => { n.innerHTML = catSVG; });
   }
 
   function buildKeys() {
@@ -1138,11 +1307,12 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.target.matches && e.target.matches('select, input, textarea')) return;
+    if (e.key !== 'Escape' && e.target.matches && e.target.matches('select, input, textarea')) return;
     if (e.key === 'Escape') {
       if (S.view === 'window') setView('home', { focus: true });
       else if (S.view === 'receipt') setView('window', { focus: true, via: 'escape' });
       else if (S.view === 'payment' && !S.paying && ['select', 'failed', 'cancelled', 'unavailable', 'stock', 'error', 'awaiting', 'resume'].includes(S.payState)) backToReceipt();
+      else if (S.view === 'payment' && S.payState === 'success') finishToHome();
     }
     if (S.view === 'window' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
       e.preventDefault();
@@ -1201,7 +1371,6 @@
     el.hint.textContent = canHover ? '✿ hover over the window to peek inside ✿' : '✿ tap the window to peek inside ✿';
     el.winInner.inert = true;
     el.receipt.inert = true;
-    el.drawer.inert = true;
     root.classList.add('no-anim');
     updateHUD();
     frameView();
@@ -1213,7 +1382,6 @@
       setTimeout(() => {
         renderPay('resume');
         setView('payment', { focus: true });
-        later(() => el.panel.classList.add('drawer-open'), 420);
       }, 700);
     }
 

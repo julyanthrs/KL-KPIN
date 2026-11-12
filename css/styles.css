@@ -57,14 +57,40 @@ button { font-family: inherit; color: inherit; }
   outline-offset: 3px;
 }
 
-/* ---------- room ---------- */
+/* ---------- scenery: far layer (fixed) ---------- */
 .room {
   position: fixed;
   inset: 0;
+  overflow: hidden;
   background:
-    radial-gradient(#fff 2.4px, transparent 3px) 0 0 / 36px 36px,
-    radial-gradient(#fff 2.4px, transparent 3px) 18px 18px / 36px 36px,
-    linear-gradient(180deg, #ece0ff 0%, #ffe4ef 100%);
+    radial-gradient(circle at 78% 14%, rgba(255, 246, 214, .9) 0, rgba(255, 246, 214, 0) 26%),
+    linear-gradient(180deg, #d6ecff 0%, #e6e0ff 42%, #fbe3f0 72%, #ffe9ef 100%);
+}
+.room > * { position: absolute; display: block; }
+.sun {
+  right: 2.5%; top: 15%;
+  width: clamp(70px, 9vw, 140px); aspect-ratio: 1;
+  animation: sun-bob 6s ease-in-out infinite;
+}
+.sun svg { width: 100%; height: 100%; overflow: visible; }
+.sun-rays { transform-origin: 100px 100px; animation: sun-spin 40s linear infinite; }
+@keyframes sun-spin { to { transform: rotate(360deg); } }
+@keyframes sun-bob { 50% { translate: 0 6px; } }
+.cloud { width: clamp(110px, 15vw, 230px); animation: drift 26s ease-in-out infinite alternate; }
+.cloud.c1 { left: 5%; top: 12%; }
+.cloud.c2 { left: 30%; top: 4%; width: clamp(80px, 10vw, 160px); animation-duration: 32s; animation-delay: -9s; opacity: .9; }
+.cloud.c3 { right: 24%; top: 26%; width: clamp(90px, 12vw, 190px); animation-duration: 22s; animation-delay: -4s; }
+@keyframes drift { from { translate: -24px 0; } to { translate: 24px 0; } }
+.birds { left: 17%; top: 30%; width: clamp(48px, 5vw, 80px); }
+.hills { left: 0; bottom: 0; width: 100%; height: 62%; }
+@media (max-aspect-ratio: 1/1) {
+  .sun { right: -4px; top: 17%; width: 52px; }
+  .prop { display: none; } /* no room beside the cabinet on phones */
+  .cloud.c1 { left: -6%; top: 16%; }
+  .cloud.c2 { display: none; }
+  .cloud.c3 { right: -8%; top: 30%; }
+  .birds { left: 4%; top: 36%; }
+  .hills { height: 58%; }
 }
 
 .viewport {
@@ -86,12 +112,12 @@ button { font-family: inherit; color: inherit; }
    MACHINE LAYOUT (landscape = reference; portrait = phones)
    ========================================================= */
 .machine {
-  --mw: 1840px; --mh: 1420px;
+  --mw: 1840px; --mh: 1450px;
   --face-w: 1380px; --side-x: 1404px;
-  --win-x: 110px; --win-y: 70px; --win-w: 1140px; --win-h: 760px;
-  --panel-x: 830px; --panel-y: 890px; --drawer-top: 430px;
-  --drawer-left: calc(var(--push-x) + (var(--push-w) - 500px) / 2 - var(--panel-x));
-  --push-x: 100px; --push-y: 950px; --push-w: 660px; --push-h: 260px;
+  /* stacked like the client sketch: window → button row → PUSH at the bottom */
+  --win-x: 110px; --win-y: 58px; --win-w: 1140px; --win-h: 742px;
+  --panel-x: 160px; --panel-y: 870px;
+  --push-x: 110px; --push-y: 1192px; --push-w: 1140px; --push-h: 208px;
   --cols: 5; --rows: 2;
   --tabs-h: 86px; --tab-font: 21px;
   --pin: 128px; --name: 18px; --price: 16px; --add: 42px;
@@ -100,7 +126,7 @@ button { font-family: inherit; color: inherit; }
   --brand: 184px; --brand-top: 70px;
   --lights-top: 980px;
   --push-font: 100px;
-  --fs1-x: 1346px; --fs1-y: 1384px; --fs2-x: 24px; --fs2-y: 1384px;
+  --fs1-x: 1346px; --fs1-y: 1414px; --fs2-x: 24px; --fs2-y: 1414px;
 
   position: absolute;
   left: 0; top: 0;
@@ -110,22 +136,25 @@ button { font-family: inherit; color: inherit; }
 }
 
 @media (max-aspect-ratio: 1/1) {
+  /* Phone layout follows the client sketch: logo sign on top, a wider window
+     with 3 pins per row, the buttons in the middle and PUSH at the very bottom. */
   .machine {
-    --mw: 980px; --mh: 2070px;
-    --face-w: 740px; --side-x: 762px;
-    --win-x: 60px; --win-y: 60px; --win-w: 620px; --win-h: 1090px;
-    --panel-x: calc((var(--face-w) - 500px) / 2); --panel-y: 1556px; --drawer-top: 514px;
-    --push-x: 60px; --push-y: 1290px; --push-w: 620px; --push-h: 206px;
-    --cols: 2; --rows: 3;
-    --tabs-h: 152px; --tab-font: 22px; --tab-h: 58px;
-    --pin: 136px; --name: 22px; --price: 20px; --add: 60px;
-    --arrow-off: -22px;
+    --mw: 980px; --mh: 2024px;
+    --face-w: 980px; --side-x: 980px;
+    --win-x: 50px; --win-y: 52px; --win-w: 880px; --win-h: 1104px;
+    --panel-x: 240px; --panel-y: 1236px;
+    --push-x: 50px; --push-y: 1746px; --push-w: 880px; --push-h: 218px;
+    --cols: 3; --rows: 3;
+    --tabs-h: 140px; --tab-font: 22px; --tab-h: 54px;
+    --pin: 144px; --name: 22px; --price: 20px; --add: 64px;
+    --arrow-off: -24px;
     --stripe-k: 1.05;
-    --brand: 118px; --brand-top: 64px;
-    --lights-top: 700px;
-    --push-font: 82px;
-    --fs1-x: 702px; --fs1-y: 2026px; --fs2-x: 24px; --fs2-y: 2026px;
+    --push-font: 92px;
+    --fs1-x: 936px; --fs1-y: 1984px; --fs2-x: 24px; --fs2-y: 1984px;
   }
+  .side, .divider { display: none; }
+  .stripes { clip-path: inset(8px round 40px); }
+  .shell { border-radius: 46px; }
 }
 
 .machine::before { /* soft shadow */
@@ -137,16 +166,31 @@ button { font-family: inherit; color: inherit; }
   background: rgba(44, 37, 84, .1);
   z-index: -1;
 }
-.machine::after { /* floor */
+.machine::after { /* grass meadow in front of the hills */
   content: '';
   position: absolute;
   left: -1600px; right: -1600px;
   top: calc(100% - 3px);
   height: 1400px;
   border-top: 6px solid var(--ink);
-  background: repeating-conic-gradient(#ffd8e6 0 25%, #fff3f7 0 50%) 0 0 / 110px 110px;
+  background:
+    radial-gradient(ellipse 14px 8px, #9fdcbf 60%, transparent 64%) 0 30px / 150px 90px,
+    radial-gradient(ellipse 10px 6px, #b4e6cd 60%, transparent 64%) 75px 75px / 150px 90px,
+    linear-gradient(180deg, #c4f0dc, #d8f6e7 60%, #e4f8ee);
+  z-index: -3;
+}
+
+/* ---------- scenery: near layer (moves with the machine) ---------- */
+.plaza { /* the pink checker floor, now a tiled plaza in front of the machine */
+  position: absolute;
+  left: calc(50% - 1300px);
+  top: calc(100% - 3px);
+  width: 2600px; height: 600px;
   z-index: -2;
 }
+.prop { position: absolute; bottom: -14px; z-index: -1; overflow: visible; }
+.prop-l { right: calc(100% + 40px); width: 560px; height: 330px; }
+.prop-r { left: calc(100% + 30px); width: 560px; height: 360px; }
 
 .shell {
   position: absolute;
@@ -155,13 +199,6 @@ button { font-family: inherit; color: inherit; }
   border: 8px solid var(--ink);
   border-radius: 46px;
   box-shadow: inset 0 12px 0 #fff, inset 0 -16px 0 var(--cream-2), 20px 22px 0 rgba(44, 37, 84, .12);
-}
-.shell::before { /* the wall line from the sketch */
-  content: '';
-  position: absolute;
-  left: -1600px; right: -1600px; top: -8px;
-  border-top: 6px solid rgba(44, 37, 84, .14);
-  z-index: -1;
 }
 .shell::after { /* a thin highlight around the painted outer edge */
   content: '';
@@ -318,6 +355,98 @@ button { font-family: inherit; color: inherit; }
 }
 .cat-sticker svg { width: 100%; height: 100%; display: block; overflow: visible; }
 
+/* ---------- logo sign on top (phone layout) ---------- */
+.topper { display: none; }
+@media (max-aspect-ratio: 1/1) {
+  .topper {
+    display: block;
+    position: absolute;
+    left: 90px; right: 90px;
+    bottom: calc(100% - 8px);
+    height: 244px;
+    z-index: 1;
+  }
+}
+.topper-card {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 204px;
+  padding: 18px;
+  border: 8px solid var(--ink);
+  border-radius: 40px;
+  background: linear-gradient(180deg, #ffe5ed, var(--pink) 55%, #f3c5d5);
+  box-shadow: inset 0 10px 0 rgba(255, 255, 255, .55), 16px 16px 0 rgba(44, 37, 84, .12);
+}
+.topper-card::before { /* cream card inside the pink frame, like the side panel */
+  content: '';
+  position: absolute;
+  inset: 20px;
+  border: 5px solid var(--ink);
+  border-radius: 26px;
+  background: var(--cream);
+  box-shadow: inset 0 0 0 8px #fff;
+}
+.topper-card::after { /* shine streak */
+  content: '';
+  position: absolute;
+  left: 46px; top: 42px;
+  width: 64px; height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 8px 16px 0 -2px rgba(255, 255, 255, .55);
+  transform: rotate(-8deg);
+}
+.topper-card .screw.tl { left: 36px; top: 36px; }
+.topper-card .screw.tr { right: 36px; top: 36px; left: auto; }
+.topper-card .screw.bl { left: 36px; bottom: 36px; top: auto; }
+.topper-card .screw.br { right: 36px; bottom: 36px; left: auto; top: auto; }
+.topper-brand {
+  position: relative;
+  margin-top: 8px;
+  text-align: center;
+  font: 400 108px/1 var(--f-display);
+  letter-spacing: .03em;
+  color: var(--maroon);
+  text-shadow: 5px 5px 0 #fff, 10px 10px 0 rgba(142, 29, 57, .2);
+  white-space: nowrap;
+  user-select: none;
+}
+.topper-brand .bang { color: var(--hot); }
+.topper-sub {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 2px;
+  font: 400 19px/1 var(--f-pixel);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--navy);
+}
+.topper-sub i { width: 46px; height: 5px; border-radius: 3px; background: var(--hot); }
+.topper .spark { z-index: 1; }
+.tp-1 { left: 60px; top: 54px; width: 40px; height: 40px; background: var(--sky); }
+.tp-2 { right: 64px; top: 92px; width: 36px; height: 36px; animation-delay: .8s; }
+.tp-3 { left: 92px; bottom: 50px; width: 28px; height: 28px; animation-delay: 1.4s; }
+.topper-post {
+  position: absolute;
+  bottom: 0;
+  width: 54px; height: 70px;
+  border: 6px solid var(--ink);
+  border-bottom: 0;
+  background: var(--lilac-2);
+  box-shadow: inset 6px 0 0 rgba(255, 255, 255, .45);
+  z-index: -1;
+}
+.topper-post.l { left: 110px; }
+.topper-post.r { right: 110px; }
+.topper .topper-cat {
+  right: 34px; bottom: auto; top: -60px;
+  width: 96px; height: 96px;
+  transform: rotate(9deg);
+}
+
 /* ---------- stickers ---------- */
 .sticker {
   position: absolute;
@@ -331,7 +460,10 @@ button { font-family: inherit; color: inherit; }
 .sticker svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .sticker:hover { transform: rotate(calc(var(--r) * -1)) scale(1.15); }
 .machine:not(.v-home) .sticker { pointer-events: none; }
-@media (max-aspect-ratio: 1/1) { .sticker { left: var(--px); top: var(--py); } }
+@media (max-aspect-ratio: 1/1) {
+  .sticker { left: var(--px); top: var(--py); }
+  .sticker.wide-only { display: none; } /* would sit on the window frame */
+}
 
 /* =========================================================
    DISPLAY WINDOW
@@ -705,6 +837,8 @@ button { font-family: inherit; color: inherit; }
 .window-hit:hover .peek, .window-hit:focus-visible .peek { background: var(--pink); }
 .machine:not(.v-home) .window-hit { visibility: hidden; pointer-events: none; }
 @keyframes floaty { 50% { translate: 0 -8px; } }
+/* the pill sits in the gap under the window, never on the pins */
+.peek { bottom: -50px; padding: 6px 22px; font-size: 26px; box-shadow: 0 5px 0 var(--ink); }
 
 /* =========================================================
    TOTAL · KEYPAD · QR · RECEIPT BUTTON · PRINTER
@@ -726,6 +860,19 @@ button { font-family: inherit; color: inherit; }
   background: linear-gradient(90deg, var(--lilac) 0 55%, var(--ink) 55% calc(55% + 4px), var(--cream) calc(55% + 4px));
   box-shadow: inset 0 5px 0 rgba(255, 255, 255, .5), 0 6px 0 rgba(44, 37, 84, .18);
   pointer-events: none;
+}
+/* Desktop: the same parts laid out as one wide row between the window and PUSH. */
+@media (min-aspect-ratio: 1001/1000) {
+  .panel, .panel::before { width: 1040px; height: 280px; }
+  .panel::before {
+    background: linear-gradient(90deg, var(--lilac) 0 580px, var(--ink) 580px 584px, var(--cream) 584px);
+  }
+  .panel .total-display { left: 26px; top: 28px; }
+  .panel .receipt-key { left: 38px; top: 186px; }
+  .panel .keypad { left: 300px; top: 32px; }
+  .panel .qr-screen { left: 614px; top: 18px; }
+  .panel .printer { left: 826px; top: 62px; }
+  .panel .receipt-wrap { left: 836px; top: 86px; }
 }
 .panel.shake { animation: shake .45s; }
 @keyframes shake {
@@ -1095,76 +1242,169 @@ button { font-family: inherit; color: inherit; }
 }
 .r-thanks { text-align: center; font: 400 7px/1.65 var(--f-mono); }
 
-/* ---------- payment drawer (slides out of the slot below PUSH) ---------- */
-.payment-slot {
-  position: absolute;
-  left: calc(var(--drawer-left) - 8px);
-  top: calc(var(--drawer-top) - 30px);
-  width: 516px; height: 20px;
-  border: 3px solid var(--ink);
-  border-radius: 999px;
-  background: var(--lilac);
-  box-shadow: 0 3px 0 rgba(44, 37, 84, .14);
-  pointer-events: none;
-  z-index: 2;
+/* ---------- payment + final receipt pop-up (glass background) ---------- */
+.pay-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
 }
-.payment-slot::after {
+.pay-modal[hidden] { display: none; }
+.pm-glass { /* frosted glass: the scene stays visible but soft behind the pop-up */
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(rgba(255, 255, 255, .5) 1.6px, transparent 2.2px) 0 0 / 26px 26px,
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(160deg, rgba(204, 232, 255, .62) 0%, rgba(226, 216, 255, .55) 50%, rgba(255, 214, 230, .6) 100%);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+          backdrop-filter: blur(18px) saturate(1.3);
+  animation: pm-fade .35s ease both;
+}
+.pm-glass::before, .pm-glass::after { /* light glints across the glass */
   content: '';
   position: absolute;
-  inset: 4px 7px;
-  border-radius: inherit;
-  background: var(--ink);
-}
-.drawer-clip {
-  position: absolute;
-  left: var(--drawer-left);
-  top: calc(var(--drawer-top) - 20px);
-  width: 500px; height: 360px;
-  overflow: hidden;
+  inset: -20%;
   pointer-events: none;
-  z-index: 1;
 }
-.drawer {
-  width: 100%; height: 330px;
-  display: flex;
-  flex-direction: column;
-  padding: 16px 18px 12px;
-  border: 6px solid var(--ink);
-  border-top: 0;
-  border-radius: 0 0 26px 26px;
+.pm-glass::before {
+  background:
+    linear-gradient(115deg, transparent 0 18%, rgba(255, 255, 255, .42) 18% 22%, transparent 22% 24%, rgba(255, 255, 255, .28) 24% 25.2%, transparent 25.2%),
+    linear-gradient(115deg, transparent 0 70%, rgba(255, 255, 255, .34) 70% 73%, transparent 73% 74.6%, rgba(255, 255, 255, .22) 74.6% 75.6%, transparent 75.6%);
+  animation: glint 7s ease-in-out infinite alternate;
+}
+.pm-glass::after { /* frosted edge, like looking through a pane */
+  inset: 0;
+  box-shadow: inset 0 0 0 10px rgba(255, 255, 255, .28), inset 0 0 80px rgba(255, 255, 255, .35);
+}
+@keyframes glint { to { translate: 6% 0; } }
+.pm-card {
+  position: relative;
+  filter: drop-shadow(0 18px 30px rgba(84, 66, 150, .25));
+  width: min(440px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 5px solid var(--ink);
+  border-radius: 30px;
   background: #fff;
-  box-shadow: inset 0 10px 0 var(--lilac);
-  pointer-events: auto;
-  transform: translateY(-101%);
-  visibility: hidden;
-  transition: transform .45s var(--ease), visibility 0s .45s;
+  box-shadow: 0 9px 0 var(--ink), 0 30px 60px rgba(44, 37, 84, .25);
+  animation: pm-pop .55s var(--bounce) both;
 }
-.panel.drawer-open .drawer {
-  transform: none;
-  visibility: visible;
-  transition: transform .65s var(--bounce), visibility 0s;
+.pay-modal.closing .pm-glass { animation: pm-fade .22s ease reverse both; }
+.pay-modal.closing .pm-card { animation: pm-out .22s ease-in both; }
+@keyframes pm-fade { from { opacity: 0; } }
+@keyframes pm-pop { from { opacity: 0; transform: translateY(40px) scale(.86); } }
+@keyframes pm-out { to { opacity: 0; transform: translateY(24px) scale(.92); } }
+
+.pm-head {
+  position: relative;
+  padding: 18px 64px 14px 22px;
+  border-bottom: 4px solid var(--ink);
+  border-radius: 25px 25px 0 0;
+  background:
+    radial-gradient(rgba(255, 255, 255, .7) 2px, transparent 2.6px) 0 0 / 18px 18px,
+    linear-gradient(180deg, #ffe5ed, var(--pink));
 }
-.pay-body { display: flex; flex-direction: column; height: 100%; }
-.pay-head {
+.pm-head p { margin: 0; }
+.pm-title {
+  margin: 0;
+  font: 400 34px/1 var(--f-display);
+  letter-spacing: .05em;
+  color: var(--maroon);
+  text-shadow: 3px 3px 0 #fff;
+  outline-offset: 3px;
+}
+.pm-title .bang { color: var(--hot); }
+.pm-meta { margin-top: 6px !important; font: 400 12px/1.3 var(--f-mono); opacity: .8; }
+.pm-icon {
+  position: absolute;
+  right: 14px; top: 16px;
+  width: 44px; height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 0 var(--ink);
+  cursor: pointer;
+  transition: transform .15s var(--bounce);
+}
+.pm-icon svg { width: 22px; height: 22px; }
+.pm-icon.dl { background: var(--butter); animation: boing .6s var(--bounce); }
+.pm-icon:hover { transform: translateY(-2px); }
+.pm-icon:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.pm-icon:disabled { opacity: .4; cursor: default; }
+
+.pm-paid {
+  position: absolute;
+  right: 72px; top: 20px;
+  padding: 3px 10px;
+  border: 3px solid #2f8a66;
+  border-radius: 8px;
+  color: #2f8a66;
+  font: 400 15px/1 var(--f-pixel);
+  letter-spacing: .08em;
+  transform: rotate(-8deg);
+  animation: boing .6s var(--bounce);
+}
+
+.pm-receipt { padding: 14px 22px 4px; }
+.pm-lines {
+  max-height: 210px;
+  margin: 0; padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.pm-line {
+  display: grid;
+  grid-template-columns: 38px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 2px dotted rgba(44, 37, 84, .18);
+  font: 600 16px/1.2 var(--f-body);
+}
+.pm-line:last-child { border-bottom: 0; }
+.pm-pin { width: 38px; height: 38px; }
+.pm-pin .pin-svg { filter: none; }
+.pm-q { font: 700 15px var(--f-mono); color: var(--hot); }
+.pm-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-amt { font: 700 15px var(--f-mono); white-space: nowrap; }
+.pm-total {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: flex-end;
-  padding: 4px 0 9px;
-  border-bottom: 3px dashed rgba(44, 37, 84, .22);
+  margin: 8px 0 0;
+  padding: 10px 0 12px;
+  border-top: 3px dashed rgba(44, 37, 84, .25);
+  font: 700 15px var(--f-body);
+  letter-spacing: .08em;
 }
-.pay-head p { margin: 0; }
-.pay-eyebrow { font: 600 13px var(--f-body); letter-spacing: .08em; text-transform: uppercase; opacity: .7; outline-offset: 2px; }
-.pay-total { font: 400 40px/1 var(--f-display); color: var(--maroon); }
-.pay-meta { text-align: right; font: 600 15px/1.3 var(--f-body); }
-.pay-meta span { font: 400 12px var(--f-mono); }
+.pm-total strong { font: 400 32px/1 var(--f-display); letter-spacing: .02em; color: var(--maroon); }
+
+.pay-body { display: flex; flex-direction: column; }
 .pay-main {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 10px;
-  padding: 8px 0;
+  gap: 12px;
+  padding: 14px 22px 16px;
+  border-top: 4px solid var(--ink);
+  background: var(--cream);
 }
+.pm-qr {
+  align-self: center;
+  padding: 8px;
+  border: 4px solid var(--ink);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 0 rgba(44, 37, 84, .2);
+}
+.pm-qr .qr { width: 150px; height: 150px; }
 .methods {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1200,6 +1440,9 @@ button { font-family: inherit; color: inherit; }
   font: 700 19px var(--f-body);
   cursor: pointer;
 }
+.pay-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.pay-btn svg { width: 22px; height: 22px; flex: none; }
+.pay-btn.dl-btn { background: var(--butter); }
 .pay-btn.ghost { background: #fff; }
 .pay-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 .pay-btn:disabled { opacity: .5; cursor: wait; }
@@ -1367,10 +1610,13 @@ button { font-family: inherit; color: inherit; }
   top: max(12px, env(safe-area-inset-top));
   display: flex;
   justify-content: center;
+  padding: 0 64px; /* keep clear of the sound button */
   pointer-events: none;
   z-index: 40;
 }
 .hint {
+  max-width: 100%;
+  text-align: center;
   margin: 0;
   padding: 7px 18px;
   border: 3px solid var(--ink);
