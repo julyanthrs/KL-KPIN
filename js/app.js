@@ -287,7 +287,21 @@
       if (isPortrait() || matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
         frame({ x: -6, y: -6 - lift, w: el.machine.offsetWidth + 30, h: el.machine.offsetHeight + 20 + lift }, { max: 1.25, pad: 2, top, bottom });
       } else {
-        frame({ x: -6, y: -6 - lift, w: el.machine.offsetWidth + 12, h: el.machine.offsetHeight + 22 + lift }, { max: 1.25, pad: 4, top, bottom });
+        // Desktop: the hint and chips sit beside the machine, so it can use the full
+        // height. A control only limits the framing if it would overlap the cabinet.
+        const r = { x: -6, y: -6 - lift, w: el.machine.offsetWidth + 12, h: el.machine.offsetHeight + 22 + lift };
+        const vw = el.viewport.clientWidth, vh = el.viewport.clientHeight;
+        const ups = [el.hint, el.mute].filter((n) => !n.hidden).map((n) => n.getBoundingClientRect());
+        const downs = [el.chipReceipt, el.chipHome].filter((n) => n && !n.hidden).map((n) => n.getBoundingClientRect());
+        let t = 8, b = 22; // a strip of the path stays visible under the machine
+        for (let i = 0; i < 2; i++) {
+          const s = Math.min((vw - 8) / r.w, (vh - t - b - 8) / r.h, 1.25);
+          const x0 = vw / 2 - (r.w * s) / 2 - 6, x1 = vw / 2 + (r.w * s) / 2 + 6;
+          const hits = (q) => q.right > x0 && q.left < x1;
+          ups.forEach((q) => { if (hits(q)) t = Math.max(t, q.bottom + 2); });
+          downs.forEach((q) => { if (hits(q)) b = Math.max(b, vh - q.top + 2); });
+        }
+        frame(r, { max: 1.25, pad: 4, top: t, bottom: b });
       }
     } else if (v === 'window') {
       const r = rectOf(el.win), px = isPortrait() ? 26 : 50;

@@ -16,11 +16,13 @@
   <!-- SCENERY (sky layer, fixed): sky, sun, clouds and birds; the landscape itself
        moves with the machine (see .land) so the ground always lines up -->
   <div class="room" aria-hidden="true">
+    <div class="sunlight"></div>
+    <div class="sunbeams"></div>
     <div class="sun">
       <svg viewBox="0 0 200 200">
-        <g class="sun-rays" stroke="#f3c64f" stroke-width="10" stroke-linecap="round">
+        <g class="sun-pulse"><g class="sun-rays" stroke="#f3c64f" stroke-width="10" stroke-linecap="round">
           <path d="M100 8v22M100 170v22M8 100h22M170 100h22M35 35l15 15M150 150l15 15M35 165l15-15M150 50l15-15"/>
-        </g>
+        </g></g>
         <circle cx="100" cy="100" r="54" fill="#ffe98f" stroke="#e0a93b" stroke-width="6"/>
         <circle cx="84" cy="98" r="5" fill="#8a5a2b"/><circle cx="116" cy="98" r="5" fill="#8a5a2b"/>
         <path d="M92 112q8 7 16 0" fill="none" stroke="#8a5a2b" stroke-width="4.5" stroke-linecap="round"/>
@@ -30,6 +32,8 @@
     <svg class="cloud c1" viewBox="0 0 260 120"><use href="#cloudShape"/></svg>
     <svg class="cloud c2" viewBox="0 0 260 120"><use href="#cloudShape"/></svg>
     <svg class="cloud c3" viewBox="0 0 260 120"><use href="#cloudShape"/></svg>
+    <!-- tiny sparkles, glowing dots and drifting petals (filled in by js/ambient.js) -->
+    <div class="sky-fx"></div>
     <svg class="birds" viewBox="0 0 120 50"><path d="M6 24q10-12 20 0q10-12 20 0M70 12q8-9 16 0q8-9 16 0" fill="none" stroke="#8f84c4" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
 
     <svg class="defs" width="0" height="0">
@@ -54,7 +58,10 @@
         <!-- SCENERY (moves with the machine): one continuous landscape drawn from the client's
              "scenery vending machine" sketch: the big hill behind the cabinet, the fence post on
              the left, the little arch on the right, all standing on the same meadow. -->
-        <svg class="land" viewBox="-6000 -2600 12000 6600" aria-hidden="true">
+        <!-- three layers of one landscape: far peaks, the big hill + pink hills, and the meadow.
+             The two back layers drift a few pixels (parallax); the meadow never moves, so it
+             always meets the machine. -->
+        <svg class="land l-far" viewBox="-6000 -2600 12000 6600" aria-hidden="true">
           <defs>
             <linearGradient id="gFar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ebe4ff"/><stop offset=".5" stop-color="#f3edff"/></linearGradient>
             <linearGradient id="gBig" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d8cdff"/><stop offset=".55" stop-color="#e7dfff"/><stop offset=".8" stop-color="#f0eaff"/></linearGradient>
@@ -72,6 +79,8 @@
           <!-- far range: palest colour and softest outline, so it reads as farthest away -->
           <path d="M-6000 -620 L-5200 -1050 Q-5100 -1120 -5000 -1050 L-4300 -700 L-3700 -1180 Q-3600 -1250 -3500 -1180 L-2600 -640 L-2020 -900 Q-1920 -960 -1820 -900 L-1200 -560 L-200 -600 L1400 -700 L2300 -1240 Q2400 -1310 2500 -1240 L3200 -760 L3900 -1080 Q4000 -1150 4100 -1080 L4900 -640 L5500 -980 Q5600 -1040 5700 -980 L6000 -800 V400 H-6000Z" fill="url(#gFar)" stroke="#cfc6f0" stroke-width="6" stroke-linejoin="round"/>
           <path d="M-5200 -1050Q-5100 -1120 -5000 -1050L-5022 -1016L-5060 -1038L-5100 -1010L-5140 -1038L-5178 -1016ZM-3700 -1180Q-3600 -1250 -3500 -1180L-3522 -1146L-3560 -1168L-3600 -1140L-3640 -1168L-3678 -1146ZM-2020 -900Q-1920 -970 -1820 -900L-1842 -866L-1880 -888L-1920 -860L-1960 -888L-1998 -866ZM2300 -1240Q2400 -1310 2500 -1240L2478 -1206L2440 -1228L2400 -1200L2360 -1228L2322 -1206ZM3900 -1080Q4000 -1150 4100 -1080L4078 -1046L4040 -1068L4000 -1040L3960 -1068L3922 -1046ZM5500 -980Q5600 -1050 5700 -980L5678 -946L5640 -968L5600 -940L5560 -968L5522 -946Z" fill="#fffaf2" stroke="#cfc6f0" stroke-width="5" stroke-linejoin="round"/>
+        </svg>
+        <svg class="land l-mid" viewBox="-6000 -2600 12000 6600" aria-hidden="true">
           <!-- the big hill from the sketch, its snowy top peeking over the cabinet -->
           <g transform="scale(1 .9)">
           <path d="M-6000 -160 C-4200 -200 -2800 -330 -1800 -700 C-1000 -1000 -300 -1580 120 -1700 Q260 -1745 400 -1690 C700 -1560 850 -1200 1300 -1000 C1900 -760 3500 -560 6000 -480 V400 H-6000Z" fill="url(#gBig)"/>
@@ -81,20 +90,23 @@
           <!-- rolling pink hills with lollipop trees -->
           <path d="M-6000 -330 C-5000 -640 -3900 -660 -2900 -470 C-2100 -320 -1500 -170 -700 -150 C100 -130 700 -300 1500 -430 C2400 -580 3500 -560 4400 -400 C5000 -300 5500 -330 6000 -390 V400 H-6000Z" fill="url(#gPink)" stroke="#e7aec5" stroke-width="7" stroke-linejoin="round"/>
           <g fill="#ffb3c9" stroke="#c98fae" stroke-width="7" stroke-linecap="round">
-            <g transform="translate(-2560 -470) scale(1)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
-            <g transform="translate(-2330 -420) scale(0.8)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
-            <g transform="translate(-1420 -185) scale(0.85)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
-            <g transform="translate(1240 -390) scale(0.9)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
-            <g transform="translate(1440 -420) scale(1.1)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
-            <g transform="translate(2230 -555) scale(0.9)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
-            <g transform="translate(2480 -575) scale(1)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
-            <g transform="translate(3400 -560) scale(0.85)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
-            <g transform="translate(-4300 -620) scale(0.8)"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g>
+            <g transform="translate(-2560 -470) scale(1)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
+            <g transform="translate(-2330 -420) scale(0.8)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
+            <g transform="translate(-1420 -185) scale(0.85)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
+            <g transform="translate(1240 -390) scale(0.9)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
+            <g transform="translate(1440 -420) scale(1.1)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
+            <g transform="translate(2230 -555) scale(0.9)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
+            <g transform="translate(2480 -575) scale(1)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
+            <g transform="translate(3400 -560) scale(0.85)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
+            <g transform="translate(-4300 -620) scale(0.8)"><g class="tree"><path d="M0 0v-84" fill="none"/><circle cy="-120" r="46"/><path d="M-18 -134q10-14 26-12" fill="none" stroke="#fff" stroke-width="8" opacity=".75"/></g></g>
           </g>
+        </svg>
+        <svg class="land l-near" viewBox="-6000 -2600 12000 6600" aria-hidden="true">
           <!-- the meadow everything stands on: one ground line, no seams -->
           <path d="M-6000 -60 C-4500 -150 -3000 -40 -1800 -70 C-900 -90 -400 -40 0 -40 C400 -40 900 -90 1800 -70 C3000 -40 4500 -150 6000 -60 V4000 H-6000Z" fill="url(#gMeadow)" stroke="#2c2554" stroke-width="6" stroke-linejoin="round"/>
           <rect x="-6000" y="40" width="12000" height="3960" fill="url(#tufts)"/>
           <!-- the sketch's fence: rails run all the way out to the left -->
+          <g class="prop-fence">
           <g transform="translate(-1060 0) scale(.76) translate(1060 0)">
           <g stroke="#2c2554" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
             <rect x="-7600" y="-262" width="6490" height="38" rx="14" fill="#fff3e2"/>
@@ -103,32 +115,71 @@
               <rect x="-1403" y="-330" width="46" height="344" rx="16"/><rect x="-1673" y="-330" width="46" height="344" rx="16"/><rect x="-1943" y="-330" width="46" height="344" rx="16"/><rect x="-2213" y="-330" width="46" height="344" rx="16"/><rect x="-2483" y="-330" width="46" height="344" rx="16"/><rect x="-2753" y="-330" width="46" height="344" rx="16"/><rect x="-3023" y="-330" width="46" height="344" rx="16"/><rect x="-3293" y="-330" width="46" height="344" rx="16"/><rect x="-3563" y="-330" width="46" height="344" rx="16"/><rect x="-3833" y="-330" width="46" height="344" rx="16"/><rect x="-4103" y="-330" width="46" height="344" rx="16"/><rect x="-4373" y="-330" width="46" height="344" rx="16"/><rect x="-4643" y="-330" width="46" height="344" rx="16"/><rect x="-4913" y="-330" width="46" height="344" rx="16"/><rect x="-5183" y="-330" width="46" height="344" rx="16"/><rect x="-5453" y="-330" width="46" height="344" rx="16"/><rect x="-5723" y="-330" width="46" height="344" rx="16"/><rect x="-5993" y="-330" width="46" height="344" rx="16"/>
             </g>
             <!-- signpost at the end of the fence, pointing at the machine -->
-            <rect x="-1137" y="-560" width="54" height="574" rx="18" fill="#fffaf0"/>
-            <path d="M-1260 -700 H-930 L-870 -634 L-930 -568 H-1260 Q-1282 -568 -1282 -590 V-678 Q-1282 -700 -1260 -700Z" fill="#ffd6e2"/>
-            <path d="M-1240 -60c-10-50 10-80 26-92M-1210 -60c6-40 26-58 42-66" fill="none" stroke="#5cb88f" stroke-width="6"/>
-            <circle cx="-1214" cy="-158" r="20" fill="#ffe98f" stroke-width="6"/><circle cx="-1166" cy="-130" r="17" fill="#ffb3c9" stroke-width="6"/>
-            <path d="M-1780 -40c-8-44 10-70 24-80" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="-1756" cy="-128" r="17" fill="#ffffff" stroke-width="6"/>
+            <rect class="sign" x="-1137" y="-560" width="54" height="574" rx="18" fill="#fffaf0"/>
+            <path class="sign" d="M-1260 -700 H-930 L-870 -634 L-930 -568 H-1260 Q-1282 -568 -1282 -590 V-678 Q-1282 -700 -1260 -700Z" fill="#ffd6e2"/>
+            <g class="flower"><path d="M-1240 -60c-10-50 10-80 26-92" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="-1214" cy="-158" r="20" fill="#ffe98f" stroke-width="6"/></g>
+            <g class="flower"><path d="M-1210 -60c6-40 26-58 42-66" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="-1166" cy="-130" r="17" fill="#ffb3c9" stroke-width="6"/></g>
+            <g class="flower"><path d="M-1780 -40c-8-44 10-70 24-80" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="-1756" cy="-128" r="17" fill="#ffffff" stroke-width="6"/></g>
           </g>
-          <text x="-1080" y="-628" text-anchor="middle" font-family="Luckiest Guy, Fredoka, sans-serif" font-size="56" fill="#8e1d39">PINS</text>
-          <text x="-1080" y="-584" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="34" fill="#2c2554">this way ♡</text>
+          <text class="sign" x="-1080" y="-628" text-anchor="middle" font-family="Luckiest Guy, Fredoka, sans-serif" font-size="56" fill="#8e1d39">PINS</text>
+          <text class="sign" x="-1080" y="-584" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="34" fill="#2c2554">this way ♡</text>
           </g>
-          <!-- the sketch's little arch beside the cabinet: an arched drop box, plus a flowering bush -->
+          </g>
+          <!-- a flowering bush beside the cabinet (the arched drop box was removed) -->
+          <g class="prop-arch">
           <g transform="translate(1000 0) scale(.78) translate(-1000 0)">
-          <g stroke="#2c2554" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
-            <path transform="translate(-100 0)" d="M1225 12c-62 0-80-62-48-100-26-56 26-112 86-92 32-52 122-52 152 4 58-14 98 48 66 94 26 40 4 94-52 94Z" fill="#c4f0dc"/>
-            <path d="M995 12V-210a118 118 0 0 1 236 0V12Z" fill="#ffb3c9"/>
-            <path d="M1048 12V-196a65 65 0 0 1 130 0V12" fill="#ffd6e2"/>
-            <path d="M1074 -150h78" fill="none"/>
-            <path d="M1231 -150h52v-58h-30" fill="none"/>
+          <g class="bush">
+            <path transform="translate(-100 0)" d="M1225 12c-62 0-80-62-48-100-26-56 26-112 86-92 32-52 122-52 152 4 58-14 98 48 66 94 26 40 4 94-52 94Z" fill="#c4f0dc" stroke="#2c2554" stroke-width="7" stroke-linejoin="round"/>
+            <g fill="#ff7fa7" stroke="#2c2554" stroke-width="5" transform="translate(-10 0)"><circle cx="1290" cy="-130" r="14"/><circle cx="1370" cy="-80" r="13"/><circle cx="1330" cy="-30" r="12"/></g>
+            <path transform="translate(-10 0)" d="M1268 -170q22-22 54-12" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".7"/>
           </g>
-          <path d="M1096 -258q17 14 34 0" fill="none" stroke="#2c2554" stroke-width="6" stroke-linecap="round"/>
-          <g fill="#ff7fa7" stroke="#2c2554" stroke-width="5" transform="translate(-10 0)"><circle cx="1290" cy="-130" r="14"/><circle cx="1370" cy="-80" r="13"/><circle cx="1330" cy="-30" r="12"/></g>
-          <path transform="translate(-10 0)" d="M1268 -170q22-22 54-12" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".7"/>
+          </g>
+          </g>
+          <!-- grass tufts that bend in the breeze -->
+          <g fill="none" stroke="#6cc39b" stroke-width="7" stroke-linecap="round">
+            <g transform="translate(-1150 70) scale(0.9)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(-1500 -20) scale(1)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(-1950 110) scale(1.1)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(-2350 30) scale(0.9)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(-2900 150) scale(1.2)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(-1300 230) scale(1.15)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(-3500 60) scale(1)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(1180 60) scale(1)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(1560 -10) scale(0.9)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(1900 120) scale(1.1)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(2300 40) scale(1)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(2850 160) scale(1.2)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(1350 240) scale(1.15)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
+            <g transform="translate(3450 70) scale(1)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46"/></g></g>
           </g>
           <!-- the pink checker floor becomes a tiled path that runs out to the viewer -->
-          <path d="M-1000 -18 H1000 L3400 4000 H-3400Z" fill="url(#checker)" stroke="#2c2554" stroke-width="7" stroke-linejoin="round"/>
+          <path class="path-wide" d="M-1000 -18 H1000 L3400 4000 H-3400Z" fill="url(#checker)" stroke="#2c2554" stroke-width="7" stroke-linejoin="round"/>
+          <!-- phones: a narrower path, so grass and flowers show in the bottom corners -->
+          <g class="ph-only">
+            <path d="M-210 -18 H210 L900 4000 H-900Z" fill="url(#checker)" stroke="#2c2554" stroke-width="7" stroke-linejoin="round"/>
+            <!-- the fence, in the open ground below the cabinet -->
+            <g stroke="#2c2554" stroke-width="6" stroke-linejoin="round" stroke-linecap="round">
+              <rect x="-1100" y="40" width="822" height="24" rx="10" fill="#fff3e2"/>
+              <rect x="-1100" y="94" width="822" height="24" rx="10" fill="#fff3e2"/>
+              <g fill="#fffaf0"><rect x="-322" y="8" width="26" height="140" rx="10"/><rect x="-388" y="8" width="26" height="140" rx="10"/><rect x="-454" y="8" width="26" height="140" rx="10"/><rect x="-520" y="8" width="26" height="140" rx="10"/><rect x="-586" y="8" width="26" height="140" rx="10"/><rect x="-652" y="8" width="26" height="140" rx="10"/><rect x="-718" y="8" width="26" height="140" rx="10"/><rect x="-784" y="8" width="26" height="140" rx="10"/><rect x="-850" y="8" width="26" height="140" rx="10"/><rect x="-916" y="8" width="26" height="140" rx="10"/><rect x="-982" y="8" width="26" height="140" rx="10"/></g>
+            </g>
+            <g transform="translate(-300 156) scale(0.8)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46" fill="none" stroke="#6cc39b" stroke-width="7" stroke-linecap="round"/></g></g>
+            <g transform="translate(-385 158) scale(0.7)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46" fill="none" stroke="#6cc39b" stroke-width="7" stroke-linecap="round"/></g></g>
+            <g transform="translate(-262 150) scale(0.8)"><g class="flower"><path d="M0 0c-6-30 6-50 16-58" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="16" cy="-72" r="16" fill="#ffe98f" stroke="#2c2554" stroke-width="6"/></g></g>
+            <g transform="translate(-620 140) scale(0.9)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46" fill="none" stroke="#6cc39b" stroke-width="7" stroke-linecap="round"/></g></g>
+            <g transform="translate(-560 150) scale(0.8)"><g class="flower"><path d="M0 0c-6-30 6-50 16-58" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="16" cy="-72" r="16" fill="#ffb3c9" stroke="#2c2554" stroke-width="6"/></g></g>
+            <g transform="translate(290 70) scale(0.9)"><g class="flower"><path d="M0 0c-6-30 6-50 16-58" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="16" cy="-72" r="16" fill="#ffb3c9" stroke="#2c2554" stroke-width="6"/></g></g>
+            <g transform="translate(360 130) scale(1)"><g class="flower"><path d="M0 0c-6-30 6-50 16-58" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="16" cy="-72" r="16" fill="#ffe98f" stroke="#2c2554" stroke-width="6"/></g></g>
+            <g transform="translate(410 46) scale(0.8)"><g class="flower"><path d="M0 0c-6-30 6-50 16-58" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="16" cy="-72" r="16" fill="#ffffff" stroke="#2c2554" stroke-width="6"/></g></g>
+            <g transform="translate(262 146) scale(0.9)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46" fill="none" stroke="#6cc39b" stroke-width="7" stroke-linecap="round"/></g></g>
+            <g transform="translate(330 40) scale(0.8)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46" fill="none" stroke="#6cc39b" stroke-width="7" stroke-linecap="round"/></g></g>
+            <g transform="translate(430 150) scale(0.9)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46" fill="none" stroke="#6cc39b" stroke-width="7" stroke-linecap="round"/></g></g>
+            <g transform="translate(520 100) scale(0.9)"><g class="flower"><path d="M0 0c-6-30 6-50 16-58" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="16" cy="-72" r="16" fill="#ffe98f" stroke="#2c2554" stroke-width="6"/></g></g>
+            <g transform="translate(580 60) scale(0.9)"><g class="grass"><path d="M0 0q-8-34-26-52M0 0q0-40 4-66M0 0q8-30 24-46" fill="none" stroke="#6cc39b" stroke-width="7" stroke-linecap="round"/></g></g>
+            <g transform="translate(640 140) scale(0.8)"><g class="flower"><path d="M0 0c-6-30 6-50 16-58" fill="none" stroke="#5cb88f" stroke-width="6"/><circle cx="16" cy="-72" r="16" fill="#ffffff" stroke="#2c2554" stroke-width="6"/></g></g>
+          </g>
         </svg>
-        <!-- LOGO SIGN on top of the cabinet (phone layout, per the client sketch) -->
+        <!-- LOGO SIGN on top of the cabinet (per the client sketch) -->
         <div class="topper" aria-hidden="true">
           <span class="topper-post l"></span><span class="topper-post r"></span>
           <div class="topper-card">
@@ -174,17 +225,17 @@
         </section>
 
         <!-- STICKERS (landscape position --lx/--ly, phone position --px/--py) -->
-        <div class="sticker" data-shape="star" aria-hidden="true" style="--lx:26px;--ly:44px;--px:40px;--py:1252px;--s:64px;--r:-8deg"></div>
-        <div class="sticker" data-shape="heart" aria-hidden="true" style="--lx:30px;--ly:270px;--px:150px;--py:1296px;--s:60px;--r:-12deg"></div>
-        <div class="sticker" data-shape="sparkle" aria-hidden="true" style="--lx:40px;--ly:480px;--px:70px;--py:1390px;--s:40px;--r:0deg"></div>
-        <div class="sticker" data-shape="rect" aria-hidden="true" style="--lx:1298px;--ly:120px;--px:846px;--py:1262px;--s:66px;--r:28deg"></div>
-        <div class="sticker" data-shape="sparkle" aria-hidden="true" style="--lx:1318px;--ly:42px;--px:900px;--py:1390px;--s:36px;--r:10deg"></div>
-        <div class="sticker" data-shape="flower" aria-hidden="true" style="--lx:1302px;--ly:540px;--px:790px;--py:1470px;--s:64px;--r:10deg"></div>
-        <div class="sticker wide-only" data-shape="heart" aria-hidden="true" style="--lx:40px;--ly:910px;--px:6px;--py:520px;--s:54px;--r:14deg"></div>
-        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:1250px;--ly:900px;--px:80px;--py:1540px;--s:62px;--r:-20deg"></div>
-        <div class="sticker" data-shape="rect" aria-hidden="true" style="--lx:1296px;--ly:1040px;--px:840px;--py:1600px;--s:56px;--r:-14deg"></div>
-        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:52px;--ly:1050px;--px:160px;--py:1630px;--s:54px;--r:-20deg"></div>
-        <div class="sticker wide-only" data-shape="star" aria-hidden="true" style="--lx:1300px;--ly:1200px;--px:918px;--py:700px;--s:58px;--r:10deg"></div>
+        <div class="sticker" data-shape="star" aria-hidden="true" style="--lx:22px;--ly:902px;--px:40px;--py:910px;--s:64px;--r:-8deg"></div>
+        <div class="sticker" data-shape="heart" aria-hidden="true" style="--lx:26px;--ly:1004px;--px:150px;--py:954px;--s:60px;--r:-12deg"></div>
+        <div class="sticker" data-shape="sparkle" aria-hidden="true" style="--lx:44px;--ly:1104px;--px:70px;--py:1048px;--s:40px;--r:0deg"></div>
+        <div class="sticker" data-shape="rect" aria-hidden="true" style="--lx:1150px;--ly:898px;--px:846px;--py:920px;--s:66px;--r:28deg"></div>
+        <div class="sticker" data-shape="sparkle" aria-hidden="true" style="--lx:1176px;--ly:1114px;--px:900px;--py:1048px;--s:36px;--r:10deg"></div>
+        <div class="sticker" data-shape="flower" aria-hidden="true" style="--lx:1158px;--ly:1004px;--px:790px;--py:1128px;--s:64px;--r:10deg"></div>
+        <div class="sticker wide-only" data-shape="heart" aria-hidden="true" style="--lx:6px;--ly:700px;--px:6px;--py:520px;--s:54px;--r:14deg"></div>
+        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:150px;--ly:1168px;--px:80px;--py:1198px;--s:62px;--r:-20deg"></div>
+        <div class="sticker" data-shape="rect" aria-hidden="true" style="--lx:1040px;--ly:1170px;--px:840px;--py:1258px;--s:56px;--r:-14deg"></div>
+        <div class="sticker" data-shape="rectY" aria-hidden="true" style="--lx:930px;--ly:1170px;--px:160px;--py:1288px;--s:54px;--r:-20deg"></div>
+        <div class="sticker wide-only" data-shape="star" aria-hidden="true" style="--lx:1182px;--ly:760px;--px:918px;--py:700px;--s:58px;--r:10deg"></div>
 
         <!-- TOTAL · KEYPAD · QR · RECEIPT BUTTON · PRINTER -->
         <section id="panel" class="panel" aria-label="Order total, keypad, QR screen and receipt printer">
@@ -278,5 +329,6 @@
   <script type="module" src="js/pins.js"></script>
   <script type="module" src="js/payment.js"></script>
   <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/ambient.js"></script>
 </body>
 </html>

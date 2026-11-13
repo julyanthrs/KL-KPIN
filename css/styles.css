@@ -75,22 +75,89 @@ button { font-family: inherit; color: inherit; }
 }
 .sun svg { width: 100%; height: 100%; overflow: visible; }
 .sun-rays { transform-origin: 100px 100px; animation: sun-spin 40s linear infinite; }
+.sun-pulse { transform-origin: 100px 100px; animation: sun-pulse 4.5s ease-in-out infinite; }
 @keyframes sun-spin { to { transform: rotate(360deg); } }
-@keyframes sun-bob { 50% { translate: 0 6px; } }
-.cloud { width: clamp(110px, 15vw, 230px); animation: drift 26s ease-in-out infinite alternate; }
+@keyframes sun-bob { 50% { translate: 0 7px; rotate: 2deg; } }
+@keyframes sun-pulse { 50% { transform: scale(1.08); opacity: .75; } }
+
+/* warm light around the sun that slowly breathes, plus faint turning beams */
+.sunlight, .sunbeams {
+  --sun-x: calc(100% - 2.5% - clamp(35px, 4.5vw, 70px));
+  --sun-y: calc(15% + clamp(35px, 4.5vw, 70px));
+  left: calc(var(--sun-x) - var(--r)); top: calc(var(--sun-y) - var(--r));
+  width: calc(var(--r) * 2); aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.sunlight {
+  --r: 46vmax;
+  background: radial-gradient(circle, rgba(255, 244, 205, .75) 0, rgba(255, 238, 220, .32) 28%, rgba(255, 236, 228, 0) 64%);
+  animation: sunlight 16s ease-in-out infinite;
+}
+.sunbeams {
+  --r: 60vmax;
+  background: repeating-conic-gradient(rgba(255, 249, 226, 0) 0deg 10deg, rgba(255, 249, 226, .55) 14deg 17deg, rgba(255, 249, 226, 0) 21deg 30deg);
+  -webkit-mask-image: radial-gradient(circle, #000 4%, rgba(0, 0, 0, .5) 22%, transparent 58%);
+  mask-image: radial-gradient(circle, #000 4%, rgba(0, 0, 0, .5) 22%, transparent 58%);
+  opacity: .5;
+  animation: beams 150s linear infinite;
+}
+@keyframes sunlight { 50% { opacity: .6; scale: 1.06; } }
+@keyframes beams { to { rotate: 360deg; } }
+
+/* floating particles: twinkling sparkles, glowing dots and the odd drifting petal */
+.sky-fx { inset: 0; pointer-events: none; }
+.sky-fx > * { position: absolute; display: block; }
+.fx-star { width: var(--s); aspect-ratio: 1; animation: fx-twinkle var(--t) ease-in-out var(--d) infinite; }
+.fx-star svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.fx-dot {
+  width: var(--s); aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0, rgba(255, 240, 248, .9) 35%, rgba(255, 214, 232, 0) 70%);
+  animation: fx-rise var(--t) linear var(--d) infinite;
+}
+.fx-petal { animation: fx-fall var(--t) linear var(--d) infinite; }
+.fx-petal i {
+  display: block; width: 14px; height: 10px;
+  border-radius: 0 80% 0 80%;
+  background: linear-gradient(135deg, #ffd9e6, #ffb3c9);
+  box-shadow: inset 0 0 0 1.5px rgba(232, 135, 168, .7);
+  animation: fx-sway 3.4s ease-in-out infinite alternate;
+}
+@keyframes fx-twinkle {
+  0%, 100% { opacity: .15; transform: scale(.55) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(25deg); }
+}
+@keyframes fx-rise {
+  0% { opacity: 0; transform: translate(0, 0); }
+  20%, 70% { opacity: .9; }
+  100% { opacity: 0; transform: translate(var(--dx), -90px); }
+}
+@keyframes fx-fall {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  8%, 82% { opacity: .95; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(300deg); }
+}
+@keyframes fx-sway { from { transform: translateX(-14px) rotate(-25deg); } to { transform: translateX(14px) rotate(20deg); } }
+.cloud { width: clamp(110px, 15vw, 230px); animation: drift 40s ease-in-out infinite alternate; }
 .cloud.c1 { left: 5%; top: 12%; }
-.cloud.c2 { left: 30%; top: 4%; width: clamp(80px, 10vw, 160px); animation-duration: 32s; animation-delay: -9s; opacity: .9; }
-.cloud.c3 { right: 24%; top: 26%; width: clamp(90px, 12vw, 190px); animation-duration: 22s; animation-delay: -4s; }
-@keyframes drift { from { translate: -24px 0; } to { translate: 24px 0; } }
+.cloud.c2 { left: 30%; top: 4%; width: clamp(80px, 10vw, 160px); animation-duration: 52s; animation-delay: -14s; opacity: .9; }
+.cloud.c3 { right: 24%; top: 26%; width: clamp(90px, 12vw, 190px); animation-duration: 34s; animation-delay: -6s; }
+@keyframes drift { from { translate: -3.5vw 0; } to { translate: 3.5vw 0; } }
 @keyframes drift-sm { from { translate: -5px 0; } to { translate: 5px 0; } }
 .birds { left: 17%; top: 30%; width: clamp(48px, 5vw, 80px); }
 @media (max-aspect-ratio: 1/1) {
-  .sun { right: 3px; top: 17%; width: 52px; }
-  .cloud.c1 { left: 8px; top: 12.5%; width: 56px; animation-name: drift-sm; } /* whole clouds only: no half-cut shapes */
+  /* Phones: the sky shows beside the logo sign, so the sun, cloud and birds sit there,
+     whole (never tucked behind the cabinet or cut by the screen edge). */
+  .sun { right: 8px; top: 82px; width: clamp(46px, 12vw, 88px); }
+  .cloud.c1 { left: 8px; top: 94px; width: clamp(52px, 14vw, 110px); animation-name: drift-sm; }
   .cloud.c2 { display: none; }
   .cloud.c3 { display: none; } /* would only peek out from behind the cabinet */
-  .birds { left: 4%; top: 36%; }
-  .land { transform: scale(1.25); } /* taller cabinet, so a taller landscape */
+  .birds { left: 14px; top: 64px; width: 34px; }
+  .sunlight, .sunbeams {
+    --sun-x: calc(100% - 8px - clamp(23px, 6vw, 44px));
+    --sun-y: calc(82px + clamp(23px, 6vw, 44px));
+  }
+  .land { scale: 1.25; } /* taller cabinet, so a taller landscape */
 }
 
 .viewport {
@@ -112,21 +179,22 @@ button { font-family: inherit; color: inherit; }
    MACHINE LAYOUT (landscape = reference; portrait = phones)
    ========================================================= */
 .machine {
-  --mw: 1840px; --mh: 1450px;
-  --face-w: 1380px; --side-x: 1404px;
-  /* stacked like the client sketch: window → button row → PUSH at the bottom */
-  --win-x: 110px; --win-y: 58px; --win-w: 1140px; --win-h: 742px;
-  --panel-x: 160px; --panel-y: 870px;
-  --push-x: 110px; --push-y: 1192px; --push-w: 1140px; --push-h: 208px;
-  --cols: 5; --rows: 2;
-  --tabs-h: 86px; --tab-font: 21px;
-  --pin: 128px; --name: 18px; --price: 16px; --add: 42px;
-  --arrow-off: -44px;
-  --stripe-k: 1.2;
+  /* Desktop follows the same client sketch as phones: the logo sign on top, a large
+     window with 3 pins per row (2 rows), the buttons in the middle and PUSH at the bottom. */
+  --mw: 1240px; --mh: 1470px;
+  --face-w: 1240px; --side-x: 1240px;
+  --win-x: 60px; --win-y: 52px; --win-w: 1120px; --win-h: 792px;
+  --panel-x: 100px; --panel-y: 890px;
+  --push-x: 60px; --push-y: 1218px; --push-w: 1120px; --push-h: 208px;
+  --cols: 3; --rows: 2;
+  --tabs-h: 86px; --tab-font: 22px;
+  --pin: 168px; --name: 22px; --price: 20px; --add: 58px;
+  --arrow-off: -40px;
+  --stripe-k: 1.15;
   --brand: 184px; --brand-top: 70px;
   --lights-top: 980px;
   --push-font: 100px;
-  --fs1-x: 1346px; --fs1-y: 1414px; --fs2-x: 24px; --fs2-y: 1414px;
+  --fs1-x: 1196px; --fs1-y: 1430px; --fs2-x: 24px; --fs2-y: 1430px;
 
   position: absolute;
   left: 0; top: 0;
@@ -139,23 +207,23 @@ button { font-family: inherit; color: inherit; }
   /* Phone layout follows the client sketch: logo sign on top, a wider window
      with 3 pins per row, the buttons in the middle and PUSH at the very bottom. */
   .machine {
-    --mw: 980px; --mh: 2024px;
+    --mw: 980px; --mh: 1682px;
     --face-w: 980px; --side-x: 980px;
-    --win-x: 50px; --win-y: 52px; --win-w: 880px; --win-h: 1104px;
-    --panel-x: 240px; --panel-y: 1236px;
-    --push-x: 50px; --push-y: 1746px; --push-w: 880px; --push-h: 218px;
-    --cols: 3; --rows: 3;
-    --tabs-h: 140px; --tab-font: 22px; --tab-h: 54px;
+    --win-x: 50px; --win-y: 52px; --win-w: 880px; --win-h: 762px;
+    --panel-x: 240px; --panel-y: 894px;
+    --push-x: 50px; --push-y: 1404px; --push-w: 880px; --push-h: 218px;
+    --cols: 3; --rows: 2;
+    --tabs-h: 86px; --tab-font: 22px; --tab-h: 54px;
     --pin: 144px; --name: 22px; --price: 20px; --add: 64px;
     --arrow-off: -24px;
     --stripe-k: 1.05;
     --push-font: 92px;
-    --fs1-x: 936px; --fs1-y: 1984px; --fs2-x: 24px; --fs2-y: 1984px;
+    --fs1-x: 936px; --fs1-y: 1642px; --fs2-x: 24px; --fs2-y: 1642px;
   }
-  .side, .divider { display: none; }
-  .stripes { clip-path: inset(8px round 40px); }
-  .shell { border-radius: 46px; }
 }
+/* one cabinet (no side panel): the logo lives on the sign above it */
+.side, .divider { display: none; }
+.stripes { clip-path: inset(8px round 40px); }
 
 .machine::before { /* soft shadow */
   content: '';
@@ -179,6 +247,45 @@ button { font-family: inherit; color: inherit; }
   z-index: -3;
   overflow: visible;
   pointer-events: none;
+}
+/* parallax: the back layers drift a little (idle loop + pointer, see js/ambient.js);
+   the meadow layer never moves, so it always meets the machine */
+.l-far { animation: land-far 28s ease-in-out infinite alternate; }
+.l-mid { animation: land-mid 28s ease-in-out infinite alternate; }
+.l-far, .l-mid { transition: transform 1.8s cubic-bezier(.2, .7, .3, 1); }
+@keyframes land-far { from { translate: -22px 5px; } to { translate: 22px -5px; } }
+@keyframes land-mid { from { translate: -9px 2px; } to { translate: 9px -2px; } }
+
+/* a soft breeze: trees, flowers, the bush and grass tufts sway from their base */
+.land .tree, .land .flower, .land .bush, .land .grass { transform-box: fill-box; transform-origin: 50% 100%; }
+.land .flower { transform-origin: 15% 100%; }
+.land .tree { animation: tree-sway 5s ease-in-out infinite alternate; }
+.land g:nth-child(3n + 2) > .tree { animation-duration: 6.2s; animation-delay: -2s; }
+.land g:nth-child(3n) > .tree { animation-duration: 4.4s; animation-delay: -3.4s; }
+.land .flower { animation: flower-sway 3.6s ease-in-out infinite alternate; }
+.land .flower:nth-of-type(2) { animation-duration: 4.2s; animation-delay: -1.3s; }
+.land .flower:nth-of-type(3) { animation-duration: 3.2s; animation-delay: -2.1s; }
+.land .bush { animation: bush-breeze 6s ease-in-out infinite alternate; }
+.land .grass { animation: grass-breeze 3.4s ease-in-out infinite alternate; }
+.land g:nth-child(2n) > .grass { animation-duration: 4.1s; animation-delay: -1.5s; }
+.land g:nth-child(3n) > .grass { animation-delay: -2.6s; }
+@keyframes tree-sway {
+  from { transform: rotate(-1.8deg) scale(1, 1); }
+  to { transform: rotate(1.8deg) scale(1.015, .985); }
+}
+@keyframes flower-sway { from { transform: rotate(-5deg); } to { transform: rotate(4deg); } }
+@keyframes bush-breeze { from { transform: skewX(-2deg) scale(1, 1); } to { transform: skewX(1.5deg) scale(1.01, 1.025); } }
+@keyframes grass-breeze { from { transform: skewX(-9deg); } to { transform: skewX(6deg); } }
+
+/* Phones: only thin strips of landscape show beside and below the tall cabinet, so the
+   fence and the arch shrink and move right up to the cabinet's feet, the path narrows,
+   and grass and flowers fill the bottom corners. */
+.land .ph-only { display: none; }
+@media (max-aspect-ratio: 1/1) {
+  /* phones: the cabinet fills the width, so the fence stands in the ground below it
+     (drawn in .ph-only) and the arched drop box is left out */
+  .land .prop-fence, .land .prop-arch, .land .path-wide { display: none; }
+  .land .ph-only { display: inline; }
 }
 
 .shell {
@@ -344,17 +451,14 @@ button { font-family: inherit; color: inherit; }
 }
 .cat-sticker svg { width: 100%; height: 100%; display: block; overflow: visible; }
 
-/* ---------- logo sign on top (phone layout) ---------- */
-.topper { display: none; }
-@media (max-aspect-ratio: 1/1) {
-  .topper {
-    display: block;
-    position: absolute;
-    left: 90px; right: 90px;
-    bottom: calc(100% - 8px);
-    height: 244px;
-    z-index: 1;
-  }
+/* ---------- logo sign on top (all screens, per the client sketch) ---------- */
+.topper {
+  display: block;
+  position: absolute;
+  left: 90px; right: 90px;
+  bottom: calc(100% - 8px);
+  height: 244px;
+  z-index: 1;
 }
 .topper-card {
   position: absolute;
@@ -512,6 +616,10 @@ button { font-family: inherit; color: inherit; }
 }
 .tab .ico { width: 32px; height: 32px; flex: none; }
 .tab:hover { background: var(--lilac); }
+@media (max-aspect-ratio: 1/1) { /* all six categories on one line */
+  .tabs { gap: 10px 4px; padding: 10px 8px; }
+  .tab { padding: 0 12px 0 7px; gap: 6px; }
+}
 .tab[aria-pressed="true"] {
   border-color: var(--ink);
   background: var(--hot);
@@ -1674,6 +1782,12 @@ button { font-family: inherit; color: inherit; }
   cursor: pointer;
 }
 .mute svg { width: 22px; height: 22px; }
+/* Desktop: the hint and the chips move to the free space beside the machine, so the
+   machine can use the full height of the screen (and look bigger). */
+@media (min-aspect-ratio: 1001/1000) and (min-width: 761px) and (pointer: fine) {
+  .hud-top { justify-content: flex-start; padding: 0 64px 0 20px; }
+  .hud-bottom { justify-content: flex-end; padding: 0 20px; }
+}
 
 .toast {
   position: fixed;
@@ -1709,6 +1823,10 @@ button { font-family: inherit; color: inherit; }
   .chip { font-size: 14px; padding: 8px 14px; }
   .toast { font-size: 14px; top: 58px; }
 }
+@media (max-width: 380px) { /* small phones: keep the hint on one line */
+  .hud-top { padding: 0 58px; }
+  .hint { font-size: 12px; padding: 6px 10px; white-space: nowrap; }
+}
 @media (max-height: 460px) {
   .hud-top { top: 6px; }
   .hint { font-size: 12px; padding: 4px 12px; }
@@ -1717,6 +1835,9 @@ button { font-family: inherit; color: inherit; }
 
 /* ---------- motion preferences ---------- */
 .no-anim .camera { transition: none !important; }
+/* reduced motion: the background holds still (no breeze, drift or particles) */
+.reduce .room *, .reduce .land, .reduce .land * { animation: none !important; transition: none !important; }
+.reduce .sky-fx { display: none; }
 .reduce *, .reduce *::before, .reduce *::after {
   animation-duration: .001ms !important;
   animation-iteration-count: 1 !important;
