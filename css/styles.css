@@ -237,17 +237,20 @@ button { font-family: inherit; color: inherit; }
 /* ---------- scenery: the landscape (moves and zooms with the machine) ----------
    One continuous illustration: x = 0 is the middle of the cabinet and y = 0 the ground it
    stands on, so the hills, fence, arch and path always meet the machine without seams.
-   It is far wider and deeper than any screen, so its edges never show. */
+   It is wider than any screen shows (x ±3200), so its edges never show. Each layer's box is
+   cut to just its own drawing: phones (iOS Safari above all) run out of graphics memory
+   and reload the page when these animated layers are much bigger. */
 .land {
   position: absolute;
-  left: calc(50% - 6000px);
-  top: calc(100% - 2600px);
-  width: 12000px; height: 6600px;
-  transform-origin: 6000px 2600px;
+  left: calc(50% - 3200px);
+  width: 6400px;
   z-index: -3;
-  overflow: visible;
+  overflow: hidden;
   pointer-events: none;
 }
+.l-far { top: calc(100% - 1360px); height: 1780px; transform-origin: 3200px 1360px; }
+.l-mid { top: calc(100% - 2060px); height: 2480px; transform-origin: 3200px 2060px; }
+.l-near { top: calc(100% - 640px); height: 2040px; transform-origin: 3200px 640px; }
 /* parallax: the back layers drift a little (idle loop + pointer, see js/ambient.js);
    the meadow layer never moves, so it always meets the machine */
 .l-far { animation: land-far 28s ease-in-out infinite alternate; }
