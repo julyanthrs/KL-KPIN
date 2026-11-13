@@ -126,6 +126,7 @@
     if (id) updateSlot(id); else PINS.forEach((p) => updateSlot(p.id));
     lcdIdle();
     updateHUD();
+    if (pz.id) renderPinZoom();
     if (S.view === 'receipt') afterReceiptEdit();
   }
 
@@ -139,7 +140,7 @@
     return `<div class="slot-item" data-id="${p.id}">
       <div class="pin-zone">
         <div class="pin-wrap">
-          <div class="pin-art">${pinSVG(p)}</div>
+          <button class="pin-art" data-act="zoom" aria-label="Look closer at ${p.name}">${pinSVG(p)}</button>
           <span class="holder" aria-hidden="true"></span>
           <span class="ribbon" aria-hidden="true">SOLD OUT</span>
           ${p.stock > 0 && p.stock <= 3 ? `<span class="low">only ${p.stock} left!</span>` : ''}
@@ -250,6 +251,122 @@
   }
 
   /* =========================================================
+     PIN CLOSE-UP — tap a pin in the open window: it lifts off its holder and
+     flies to the middle of the screen, big, over frosted glass
+     ========================================================= */
+  const pz = { id: null, src: null, slot: null, closing: false, anim: null };
+  const pzEl = {
+    modal: $('#pinModal'), art: $('#pzArt'), wrap: $('#pinModal .pz-art-wrap'),
+    name: $('#pzName'), code: $('#pzCode'), price: $('#pzPrice'), stock: $('#pzStock'), qty: $('#pzQty'),
+    dec: $('#pinModal [data-act="dec"]'), inc: $('#pinModal [data-act="inc"]'),
+  };
+  const pageLayers = () => [el.viewport, document.querySelector('.hud-top'), document.querySelector('.hud-bottom'), el.mute];
+
+  // the transform that puts the big pin exactly over the small one in the window
+  // (measured on the wrapper, which never animates, so it works mid-flight too)
+  function pzFrom() {
+    const a = pz.src && pz.src.isConnected ? pz.src.getBoundingClientRect() : null;
+    const b = pzEl.wrap.getBoundingClientRect();
+    if (!a || !a.width || !b.width) return 'scale(.25)';
+    const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
+    return `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${(a.width / b.width).toFixed(4)})`;
+  }
+
+  function renderPinZoom() {
+    const id = pz.id;
+    if (!id) return;
+    const p = byId[id], q = qty(id), left = availableStock(id), max = maxFor(id);
+    pzEl.name.textContent = p.name;
+    pzEl.code.textContent = p.code;
+    pzEl.price.textContent = money(p.price);
+    pzEl.stock.textContent = left <= 0 ? 'sold out' : left <= 3 ? `only ${left} left!` : `${left} in stock`;
+    pzEl.stock.classList.toggle('is-low', left <= 3);
+    pzEl.modal.classList.toggle('is-soldout', left <= 0);
+    pzEl.qty.textContent = q;
+    pzEl.qty.setAttribute('aria-label', `${q} in your order`);
+    pzEl.dec.textContent = '−';
+    pzEl.dec.disabled = q === 0;
+    pzEl.dec.setAttribute('aria-label', `Remove one ${p.name}`);
+    pzEl.inc.disabled = left <= 0;
+    pzEl.inc.classList.toggle('at-max', q >= max && max > 0);
+    pzEl.inc.innerHTML = left <= 0 ? 'Sold out' : `${PLUS_SVG}${q ? 'One more' : 'Add to order'} ♡`;
+    pzEl.inc.setAttribute('aria-label', left <= 0 ? `${p.name} is sold out` : `Add ${p.name}, ${money(p.price)}`);
+  }
+
+  function pzPlay(cls) {
+    const svg = pzEl.art.querySelector('.pin-svg');
+    if (!svg) return;
+    svg.classList.remove('boing', 'spin'); void svg.getBoundingClientRect(); svg.classList.add(cls);
+  }
+
+  function openPinZoom(id, srcBtn) {
+    if (pz.id || S.view !== 'window') return;
+    pz.id = id; pz.src = srcBtn; pz.closing = false;
+    pz.slot = srcBtn.closest('.slot-item');
+    S.hoverZoom = false; // stay zoomed in on the window while looking closer
+    pzEl.art.innerHTML = pinSVG(byId[id]);
+    renderPinZoom();
+    pzEl.modal.classList.remove('closing');
+    pzEl.modal.hidden = false;
+    pageLayers().forEach((n) => { if (n) n.inert = true; });
+    if (pz.slot) pz.slot.classList.add('lifted'); // the pin leaves its holder
+    if (!reduce) {
+      pz.anim = pzEl.art.animate(
+        [{ transform: pzFrom() + ' rotate(-24deg)' }, { transform: 'none' }],
+        { duration: 640, easing: 'cubic-bezier(.3, 1.3, .5, 1)' });
+    }
+    sfx.lift();
+    track('pin_zoomed', { id });
+    requestAnimationFrame(() => pzEl.name.focus({ preventScroll: true }));
+  }
+
+  function closePinZoom() {
+    if (!pz.id || pz.closing) return;
+    pz.closing = true;
+    pageLayers().forEach((n) => { if (n) n.inert = false; });
+    pzEl.modal.classList.add('closing');
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      if (pz.anim) pz.anim.cancel(); // drop the held fly-back pose before the next open
+      if (pz.slot) pz.slot.classList.remove('lifted');
+      pzEl.modal.hidden = true;
+      pzEl.modal.classList.remove('closing', 'is-soldout');
+      pzEl.art.innerHTML = '';
+      const back = pz.src;
+      Object.assign(pz, { id: null, src: null, slot: null, closing: false, anim: null });
+      if (back && back.isConnected && S.view === 'window') back.focus({ preventScroll: true });
+    };
+    const from = pz.anim ? getComputedStyle(pzEl.art).transform : 'none';
+    if (pz.anim) pz.anim.cancel();
+    sfx.slide();
+    if (reduce || !pz.src || !pz.src.isConnected) { setTimeout(done, reduce ? 0 : 220); return; }
+    // fly back down into its holder in the window
+    pz.anim = pzEl.art.animate(
+      [{ transform: from === 'none' ? 'none' : from }, { transform: pzFrom() }],
+      { duration: 420, easing: 'cubic-bezier(.5, 0, .3, 1)', fill: 'forwards' });
+    pz.anim.onfinish = done;
+    setTimeout(done, 500); // in case frames are paused (tab in the background)
+  }
+
+  pzEl.modal.addEventListener('click', (e) => {
+    if (!pz.id || pz.closing) return;
+    const b = e.target.closest('[data-act]');
+    if (b && !b.disabled) {
+      const a = b.dataset.act;
+      if (a === 'close') closePinZoom();
+      else if (a === 'inc') { const before = qty(pz.id); addPin(pz.id, 'closeup'); if (qty(pz.id) > before) pzPlay('boing'); }
+      else if (a === 'dec') removePin(pz.id, 'closeup');
+      return;
+    }
+    // tap the big pin: it flips around like a coin
+    if (e.target.closest('.pz-art-wrap')) { pzPlay('spin'); sfx.key(); }
+  });
+  // back to the gentle float once a flip or boing ends
+  pzEl.art.addEventListener('animationend', (e) => { if (e.target.classList) e.target.classList.remove('boing', 'spin'); });
+
+  /* =========================================================
      CAMERA (FR-01, FR-02, FR-11, FR-16)
      ========================================================= */
   const mqPortrait = matchMedia('(max-aspect-ratio: 1/1)');
@@ -279,13 +396,24 @@
     if (v === 'home') {
       // the logo sign (+ the cat peeking over it) sits above the cabinet on phones
       const lift = el.topper && el.topper.offsetHeight ? el.topper.offsetHeight - 8 + 64 : 0;
-      // Keep the complete cabinet between the fixed controls (hint + sound on top,
-      // Receipt chip at the bottom) so nothing floats over the machine.
-      const hintBottom = el.hint.hidden ? 0 : el.hint.getBoundingClientRect().bottom;
-      const top = Math.max(hintBottom, el.mute.getBoundingClientRect().bottom) + 2;
-      const bottom = el.viewport.clientHeight - el.chipReceipt.getBoundingClientRect().top + 2;
       if (isPortrait() || matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
-        frame({ x: -6, y: -6 - lift, w: el.machine.offsetWidth + 30, h: el.machine.offsetHeight + 20 + lift }, { max: 1.25, pad: 2, top, bottom });
+        // Phones: as big as the screen allows, edge to edge. The Receipt chip always
+        // stays below the cabinet; the top controls (hint, sound) only push it down
+        // when they would actually sit on the logo sign.
+        const r = { x: -4, y: -6 - lift, w: el.machine.offsetWidth + 8, h: el.machine.offsetHeight + 20 + lift };
+        const vw = el.viewport.clientWidth, vh = el.viewport.clientHeight;
+        const muteR = el.mute.getBoundingClientRect();
+        const ups = [el.hint, el.mute].filter((n) => !n.hidden).map((n) => n.getBoundingClientRect()).filter((q) => q.height);
+        const sign = el.topper ? { x0: el.topper.offsetLeft, x1: el.topper.offsetLeft + el.topper.offsetWidth } : { x0: 0, x1: r.w };
+        const bottom = vh - el.chipReceipt.getBoundingClientRect().top + 2;
+        let top = Math.max(6, muteR.top - 6); // notch / safe area
+        for (let i = 0; i < 2; i++) {
+          const s = Math.min((vw - 4) / r.w, (vh - top - bottom - 4) / r.h, 1.25);
+          const cx = vw / 2 - (r.x + r.w / 2) * s;
+          const x0 = cx + sign.x0 * s - 4, x1 = cx + sign.x1 * s + 4;
+          ups.forEach((q) => { if (q.right > x0 && q.left < x1) top = Math.max(top, q.bottom + 2); });
+        }
+        frame(r, { max: 1.25, pad: 2, top, bottom });
       } else {
         // Desktop: the hint and chips sit beside the machine, so it can use the full
         // height. A control only limits the framing if it would overlap the cabinet.
@@ -304,8 +432,9 @@
         frame(r, { max: 1.25, pad: 4, top: t, bottom: b });
       }
     } else if (v === 'window') {
-      const r = rectOf(el.win), px = isPortrait() ? 26 : 50;
-      frame({ x: r.x - px, y: r.y - 18, w: r.w + px * 2, h: r.h + 36 }, { max: 1.45, bottom: hudB });
+      // phones: zoom right up to the window frame (the arrows only stick out a little)
+      const r = rectOf(el.win), px = isPortrait() ? 16 : 50;
+      frame({ x: r.x - px, y: r.y - 18, w: r.w + px * 2, h: r.h + 36 }, { max: 1.45, bottom: hudB, pad: isPortrait() ? 4 : undefined });
     } else if (v === 'receipt' || v === 'payment') {
       // the payment pop-up floats over the printed receipt (blurred behind the glass)
       const r = rectOf(el.rWrap), h = el.receipt.offsetHeight;
@@ -1051,6 +1180,7 @@
       slide() { tone(480, 0.16, 'sine', 0.05, 0, 820); },
       key() { tone(1000 + Math.random() * 400, 0.05, 'square', 0.025); },
       zoom() { tone(380, 0.28, 'sine', 0.03, 0, 720); },
+      lift() { tone(520, 0.2, 'triangle', 0.05, 0, 1180); tone(1568, 0.14, 'sine', 0.035, 0.16); },
       print() { // soft continuous paper-feed whirr
         if (S.muted) return;
         const c = ac(); if (!c) return;
@@ -1214,11 +1344,11 @@
     const b = e.target.closest('button[data-act]');
     if (b && S.view === 'window') {
       const id = b.closest('.slot-item').dataset.id;
-      if (b.dataset.act === 'inc') addPin(id, 'window'); else removePin(id, 'window');
-      return;
+      const act = b.dataset.act;
+      if (act === 'zoom') openPinZoom(id, b);
+      else if (act === 'inc') addPin(id, 'window');
+      else removePin(id, 'window');
     }
-    const art = e.target.closest('.pin-art');
-    if (art) { art.classList.remove('boing'); void art.offsetWidth; art.classList.add('boing'); sfx.key(); }
   });
   el.prev.addEventListener('click', () => setBatch(S.batch - 1, 'arrow'));
   el.next.addEventListener('click', () => setBatch(S.batch + 1, 'arrow'));
@@ -1321,6 +1451,10 @@
   });
 
   document.addEventListener('keydown', (e) => {
+    if (pz.id) { // the pin close-up is on top of everything: Esc closes it, nothing else moves
+      if (e.key === 'Escape') { e.preventDefault(); closePinZoom(); }
+      return;
+    }
     if (e.key !== 'Escape' && e.target.matches && e.target.matches('select, input, textarea')) return;
     if (e.key === 'Escape') {
       if (S.view === 'window') setView('home', { focus: true });

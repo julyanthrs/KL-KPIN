@@ -148,14 +148,14 @@ button { font-family: inherit; color: inherit; }
 @media (max-aspect-ratio: 1/1) {
   /* Phones: the sky shows beside the logo sign, so the sun, cloud and birds sit there,
      whole (never tucked behind the cabinet or cut by the screen edge). */
-  .sun { right: 8px; top: 82px; width: clamp(46px, 12vw, 88px); }
-  .cloud.c1 { left: 8px; top: 94px; width: clamp(52px, 14vw, 110px); animation-name: drift-sm; }
+  .sun { right: 6px; top: 58px; width: clamp(40px, 11vw, 80px); }
+  .cloud.c1 { left: 6px; top: 50px; width: clamp(40px, 11vw, 96px); animation-name: drift-sm; }
   .cloud.c2 { display: none; }
   .cloud.c3 { display: none; } /* would only peek out from behind the cabinet */
-  .birds { left: 14px; top: 64px; width: 34px; }
+  .birds { left: 10px; top: 16px; width: 30px; }
   .sunlight, .sunbeams {
-    --sun-x: calc(100% - 8px - clamp(23px, 6vw, 44px));
-    --sun-y: calc(82px + clamp(23px, 6vw, 44px));
+    --sun-x: calc(100% - 6px - clamp(20px, 5.5vw, 40px));
+    --sun-y: calc(58px + clamp(20px, 5.5vw, 40px));
   }
   .land { scale: 1.25; } /* taller cabinet, so a taller landscape */
 }
@@ -213,9 +213,10 @@ button { font-family: inherit; color: inherit; }
     --panel-x: 240px; --panel-y: 894px;
     --push-x: 50px; --push-y: 1404px; --push-w: 880px; --push-h: 218px;
     --cols: 3; --rows: 2;
-    --tabs-h: 86px; --tab-font: 22px; --tab-h: 54px;
-    --pin: 144px; --name: 22px; --price: 20px; --add: 64px;
-    --arrow-off: -24px;
+    /* bigger text, tabs and + buttons: on a phone the window is only ~0.4x its size */
+    --tabs-h: 92px; --tab-font: 25px; --tab-h: 62px;
+    --pin: 150px; --name: 26px; --price: 23px; --add: 74px;
+    --arrow-off: -14px;
     --stripe-k: 1.05;
     --push-font: 92px;
     --fs1-x: 936px; --fs1-y: 1642px; --fs2-x: 24px; --fs2-y: 1642px;
@@ -542,6 +543,13 @@ button { font-family: inherit; color: inherit; }
   width: 96px; height: 96px;
   transform: rotate(9deg);
 }
+/* phones: a slightly narrower sign, so the sound button fits beside it and the
+   cabinet can sit right up at the top of the screen (and be framed larger) */
+@media (max-aspect-ratio: 1/1) {
+  .topper { left: 140px; right: 140px; }
+  .topper-post.l { left: 80px; }
+  .topper-post.r { right: 80px; }
+}
 
 /* ---------- stickers ---------- */
 .sticker {
@@ -620,8 +628,9 @@ button { font-family: inherit; color: inherit; }
 .tab .ico { width: 32px; height: 32px; flex: none; }
 .tab:hover { background: var(--lilac); }
 @media (max-aspect-ratio: 1/1) { /* all six categories on one line */
-  .tabs { gap: 10px 4px; padding: 10px 8px; }
-  .tab { padding: 0 12px 0 7px; gap: 6px; }
+  .tabs { gap: 10px 3px; padding: 10px 6px; }
+  .tab { padding: 0 10px 0 5px; gap: 4px; }
+  .tab .ico { width: 27px; height: 27px; }
 }
 .tab[aria-pressed="true"] {
   border-color: var(--ink);
@@ -695,6 +704,17 @@ button { font-family: inherit; color: inherit; }
   transition: transform .3s var(--bounce);
 }
 .pin-svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 5px 0 rgba(44, 37, 84, .22)); }
+button.pin-art { /* tap a pin for a close-up */
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: zoom-in;
+  -webkit-tap-highlight-color: transparent;
+}
+button.pin-art:focus-visible { outline: 5px solid var(--hot); outline-offset: 4px; }
+.lifted .pin-art { visibility: hidden; } /* it's floating in the close-up */
 .slot-item:hover .pin-art { transform: rotate(-7deg) scale(1.05); }
 .pin-art.boing { animation: boing .55s var(--bounce); }
 @keyframes boing {
@@ -844,6 +864,17 @@ button { font-family: inherit; color: inherit; }
 @keyframes pop {
   from { transform: translate(-50%, 10px) scale(.6); opacity: 1; }
   to { transform: translate(-50%, -70px) scale(1.2); opacity: 0; }
+}
+/* phones: tighter gaps so the bigger names and + buttons fit three to a row */
+@media (max-aspect-ratio: 1/1) {
+  .page { padding: 8px 8px 6px; }
+  .slot-item { margin: 6px; }
+  .pin-zone { padding-top: 6px; }
+  .label { gap: 4px; margin: 10px 6px 6px; padding: 6px 6px 6px 9px; }
+  .qty-badge { min-width: 48px; height: 48px; border-radius: 24px; font: 700 23px/40px var(--f-body); }
+  .minus-bubble { width: 50px; height: 50px; font-size: 30px; }
+  .batch-arrow { width: 74px; height: 74px; }
+  .batch-arrow svg { width: 36px; height: 36px; }
 }
 
 .shine {
@@ -1604,6 +1635,126 @@ button { font-family: inherit; color: inherit; }
 }
 
 /* =========================================================
+   PIN CLOSE-UP (the pin flies out of the window, big, over frosted glass)
+   ========================================================= */
+.pin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 46;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  color: var(--ink);
+}
+.pin-modal[hidden] { display: none; }
+.pin-modal.closing .pm-glass { animation: pm-fade .42s ease reverse both; }
+.pz-stage {
+  position: relative;
+  width: min(380px, calc(100vw - 32px));
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.pz-close { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 14px; animation: pm-fade .3s .2s both; }
+.pz-art-wrap {
+  position: relative;
+  width: min(74vw, 44vh, 330px);
+  aspect-ratio: 1;
+  flex: none;
+  cursor: pointer;
+  perspective: 900px;
+  -webkit-tap-highlight-color: transparent;
+}
+.pz-rays { /* soft light behind the pin, slowly turning */
+  position: absolute;
+  inset: -24%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 255, 255, .85) 0 7deg, rgba(255, 255, 255, 0) 7deg 20deg);
+  -webkit-mask: radial-gradient(circle, #000 28%, transparent 68%);
+          mask: radial-gradient(circle, #000 28%, transparent 68%);
+  animation: pz-rays-in .7s .2s ease-out both, spin 30s linear infinite;
+  pointer-events: none;
+}
+@keyframes pz-rays-in { from { opacity: 0; scale: .3; } }
+.pin-modal.closing .pz-rays { animation: pm-fade .2s ease reverse both; }
+.pz-art {
+  position: relative;
+  z-index: 1;
+  width: 100%; height: 100%;
+  will-change: transform;
+}
+.pz-art .pin-svg {
+  filter: drop-shadow(0 10px 0 rgba(44, 37, 84, .2)) drop-shadow(0 26px 26px rgba(44, 37, 84, .22));
+  animation: pz-float 3.4s ease-in-out .7s infinite;
+}
+.pz-art .pin-svg.boing { animation: boing .55s var(--bounce); }
+.pz-art .pin-svg.spin { animation: pz-spin .9s var(--ease); }
+@keyframes pz-float { 50% { transform: translateY(-9px) rotate(2.5deg); } }
+@keyframes pz-spin { to { transform: rotateY(360deg); } }
+.pin-modal.is-soldout .pz-art { filter: grayscale(.85) opacity(.6); }
+.pz-card {
+  width: 100%;
+  padding: 16px 18px 18px;
+  border: 5px solid var(--ink);
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 8px 0 var(--ink), 0 30px 60px rgba(44, 37, 84, .22);
+  text-align: center;
+  animation: pm-pop .55s .14s var(--bounce) both;
+}
+.pin-modal.closing .pz-card, .pin-modal.closing .pz-close { animation: pm-out .2s ease-in both; }
+.pz-tag { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 0; font: 600 14px var(--f-body); }
+.pz-tag .code { padding: 3px 7px 2px; font: 400 12px/1 var(--f-pixel); }
+.pz-stock { opacity: .75; }
+.pz-stock.is-low { color: var(--maroon); font-weight: 700; opacity: 1; }
+.pz-name {
+  margin: 8px 0 0;
+  color: var(--maroon);
+  font: 400 clamp(30px, 9vw, 40px) / 1 var(--f-display);
+  letter-spacing: .02em;
+  outline: none;
+}
+.pz-price { margin: 6px 0 16px; font: 700 24px var(--f-body); }
+.pz-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.pz-btn {
+  height: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 4px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--ink);
+  font: 700 19px var(--f-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pz-btn.minus { width: 54px; flex: none; padding: 0; background: var(--mint); font-size: 28px; }
+.pz-btn.add-btn { flex: 1; min-width: 0; padding: 0 16px; background: var(--hot); }
+.pz-btn.add-btn svg { width: 22px; height: 22px; flex: none; }
+.pz-btn.at-max { background: #efe9f7; }
+.pz-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.pz-btn:disabled { opacity: .35; cursor: not-allowed; }
+.pz-qty {
+  min-width: 50px; height: 50px;
+  flex: none;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  border: 4px solid var(--ink);
+  border-radius: 25px;
+  background: var(--butter);
+  font: 700 21px var(--f-body);
+}
+@media (max-height: 560px) and (min-aspect-ratio: 1/1) { /* phones held sideways: pin beside the card */
+  .pz-stage { flex-direction: row; width: min(660px, calc(100vw - 32px)); gap: 26px; }
+  .pz-art-wrap { width: min(38vw, 62vh); }
+}
+
+/* =========================================================
    PUSH DOOR
    ========================================================= */
 .push-door {
@@ -1825,6 +1976,12 @@ button { font-family: inherit; color: inherit; }
   .hint { font-size: 13px; padding: 6px 14px; }
   .chip { font-size: 14px; padding: 8px 14px; }
   .toast { font-size: 14px; top: 58px; }
+}
+/* Phones (portrait): the "peek inside" pill on the machine already says what to do, so
+   the top hint steps aside and the cabinet can use that space to be framed larger. */
+@media (max-aspect-ratio: 1/1) {
+  body[data-view="home"] .hud-top { display: none; }
+  .mute { right: 8px; width: 40px; height: 40px; }
 }
 @media (max-width: 380px) { /* small phones: keep the hint on one line */
   .hud-top { padding: 0 58px; }
