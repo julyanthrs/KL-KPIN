@@ -971,6 +971,23 @@ button.pin-art:focus-visible { outline: 5px solid var(--hot); outline-offset: 4p
 /* the pill sits in the gap under the window, never on the pins */
 .peek { bottom: -50px; padding: 6px 22px; font-size: 26px; box-shadow: 0 5px 0 var(--ink); }
 
+/* size chips: one tile per pin, the chips pick which size the tile shows */
+.sizes { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.sizes[hidden] { display: none; }
+.slot-item .sizes { margin: 6px 6px -6px; }
+.sz {
+  min-width: 30px; padding: 3px 8px 2px;
+  border: 2.5px solid var(--ink); border-radius: 999px;
+  background: #fff; color: var(--ink);
+  font: 700 12px/1.1 var(--f-body);
+  cursor: pointer;
+}
+.sz[aria-pressed="true"] { background: var(--pink-2); box-shadow: 0 2px 0 var(--ink); }
+.sz.out { opacity: .5; text-decoration: line-through; }
+.sz b { margin-left: 3px; color: var(--maroon); }
+.pz-sizes { margin: -6px 0 14px; }
+.pz-sizes .sz { padding: 6px 14px 5px; font-size: 17px; }
+
 /* shop closed: a sign over the glass, the window and receipt buttons stop working */
 .closed-sign {
   position: absolute;
