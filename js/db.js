@@ -28,7 +28,10 @@ export async function loadShop() {
   if (meth.error) console.warn('pay_methods:', meth.error.message);
 
   // A pin with neither a picture nor built-in art for its art key is hidden.
-  const visible = pins.data.filter((p) => !p.removed && (p.image_url || ART[p.art || p.id]));
+  const shown = pins.data.filter((p) => !p.removed && (p.image_url || ART[p.art || p.id]));
+  // sizes are pins of their own: keep each one right after the pin it was added to
+  const visible = shown.filter((p) => !p.variant_of || !shown.some((b) => b.id === p.variant_of))
+    .flatMap((p) => [p, ...shown.filter((v) => v.variant_of === p.id)]);
   const PINS = visible.map((p, i) => {
     const v = VISUALS[p.id] || {};
     return {
