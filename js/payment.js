@@ -15,7 +15,7 @@ export class ProviderError extends Error {
   constructor(code, message) { super(message || code); this.code = code; }
 }
 
-const CODES = ['shop_closed', 'bad_method', 'bad_lines', 'unknown_pin', 'not_found', 'bad_state', 'proof_required', 'bad_proof'];
+const CODES = ['shop_closed', 'bad_method', 'bad_lines', 'unknown_pin', 'not_found', 'bad_state', 'proof_required', 'bad_proof', 'bad_customer'];
 const NETWORK = new ProviderError('network', 'We could not reach the shop. Check your connection and try again.');
 
 async function rpc(fn, args) {
@@ -29,8 +29,9 @@ async function rpc(fn, args) {
   throw new ProviderError('error', 'Something went wrong. Please try again.');
 }
 
+// c = { name, phone, address } (all required, checked again by the server -> 'bad_customer')
 // -> { problems: [{id, available}] } or { order_id, token, total_cents, method }
-export const createOrder = (lines, methodId) => rpc('create_order', { lines: lines.map((l) => ({ pin_id: l.id, qty: l.qty })), method_id: methodId });
+export const createOrder = (lines, methodId, c) => rpc('create_order', { lines: lines.map((l) => ({ pin_id: l.id, qty: l.qty })), method_id: methodId, cust_name: c.name, cust_phone: c.phone, cust_address: c.address });
 // -> { problems } | { status }
 export const submitPayment = (orderId, token, proofPath) => rpc('submit_payment', { order_id: orderId, token, proof_path: proofPath || null });
 // -> { status, reject_reason, order }

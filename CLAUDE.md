@@ -31,7 +31,7 @@ Files: [index.html](index.html) (all markup, static), [css/styles.css](css/style
 
 **pins.js** — artwork only: `ART[id]`, `BG` patterns, `VISUALS[id]` (fallback `bg`, `pat`), `pinSVG` (draws `p.img` as an `<image>` when set, else `ART[p.art || p.id]`), `iconSVG`, `face`. A built-in pin needs an `ART` entry; a pin with a picture needs none. The per-pin limit is `settings.max_per_pin`, not a constant.
 
-**payment.js** — thin client over Supabase RPCs: `createOrder`, `submitPayment`, `orderStatus`, `cancelOrder`, plus `compressImage` (max 1600 px long side, JPEG 0.85; `ProviderError('bad_image')` when the browser can't decode it) and `uploadProof` (`payment-proofs/<order_id>/<uuid>.jpg`, insert only). RPC error messages are the contract's codes and become `ProviderError(code)`; no answer -> `'network'`. The browser never decides an order is paid, it only trusts `order_status`. `store` is the localStorage wrapper.
+**payment.js** — thin client over Supabase RPCs: `createOrder` (takes the customer's name, phone and address, all required, also checked by the server as `bad_customer`), `submitPayment`, `orderStatus`, `cancelOrder`, plus `compressImage` (max 1280 px long side, JPEG 0.75; `ProviderError('bad_image')` when the browser can't decode it) and `uploadProof` (`payment-proofs/<order_id>/<uuid>.jpg`, insert only). RPC error messages are the contract's codes and become `ProviderError(code)`; no answer -> `'network'`. The browser never decides an order is paid, it only trusts `order_status`. `store` is the localStorage wrapper.
 
 **supabase/** — migrations (schema, RLS, RPCs, storage policies) and `seed.sql`. The shop only reads catalog tables and calls the customer RPCs; owner edits happen in the admin app.
 

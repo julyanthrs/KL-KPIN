@@ -57,6 +57,7 @@ import * as PAY from './payment.js';
     paying: false,
     payState: null,
     method: '',
+    customer: store.get('klikpin_customer', { name: '', phone: '', address: '' }), // kept on this device so a repeat order is quick
     proof: null, // { blob, url } the compressed screenshot picked for the current order
     lastOrder: null,
     camScale: 1,
@@ -669,6 +670,7 @@ import * as PAY from './payment.js';
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const ERR_TEXT = {
+    bad_customer: 'Please enter your full name, a phone number and your complete address.',
     bad_image: 'We couldn’t read that picture. Please send a PNG or JPG screenshot.',
     proof_required: 'Please upload your payment screenshot first.',
     bad_proof: 'That upload didn’t arrive properly. Please choose your screenshot again.',
@@ -719,6 +721,12 @@ import * as PAY from './payment.js';
     if (state === 'select') {
       body = `<fieldset class="methods"><legend class="sr-only">Choose how you’ll pay</legend>
           ${METHODS.map((x) => `<label class="method"><input type="radio" name="pm" value="${esc(x.id)}" ${x.id === S.method ? 'checked' : ''}><span class="m-card"><span class="m-ico">${ICON[x.kind] || ICON.other}</span>${esc(x.name)}</span></label>`).join('')}
+        </fieldset>
+        <fieldset class="cust"><legend class="cust-h">Who is this for?</legend>
+          <label>Full name<input id="cName" name="name" autocomplete="name" maxlength="80" required value="${esc(S.customer.name)}"></label>
+          <label>Phone number<input id="cPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" required value="${esc(S.customer.phone)}"></label>
+          <label>Address<textarea id="cAddr" name="address" autocomplete="street-address" rows="3" maxlength="300" required>${esc(S.customer.address)}</textarea></label>
+          ${info.err ? `<p class="pm-err" role="alert">${esc(info.err)}</p>` : ''}
         </fieldset>
         <button class="pay-btn" data-act="pay">Continue ♡</button>
         <button class="pay-link" data-act="back">← back to receipt</button>`;
@@ -959,6 +967,13 @@ import * as PAY from './payment.js';
     setProof(null);
   }
 
+  // Same rules as create_order on the server (name 2-80, phone 7-15 digits, address 8-300).
+  function customerError() {
+    const { name, phone, address } = S.customer;
+    const digits = phone.replace(/\D/g, '').length;
+    return name.length < 2 || !/^[0-9+ ()-]+$/.test(phone) || digits < 7 || digits > 15 || address.length < 8 ? ERR_TEXT.bad_customer : '';
+  }
+
   async function startPayment() {
     if (S.paying) return;
     const t = totals();
@@ -966,13 +981,15 @@ import * as PAY from './payment.js';
     if (checkoutBlock()) { renderPay(SETTINGS.open ? 'nomethods' : 'closed'); return; }
     const again = resumableState();
     if (again) { renderPay(again); return; } // never a second order for the same cart
+    const bad = customerError();
+    if (bad) { renderPay('select', { err: bad }); sfx.err(); const f = $('.cust :invalid', el.payBody); if (f) f.focus({ preventScroll: true }); return; }
     dropCheckout();
     S.paying = true;
     const method = METHODS.find((m) => m.id === S.method) || METHODS[0];
     track('payment_started', { method: method.id, amount: t.subtotal });
     try {
       renderPay('busy', { msg: 'Setting up your order…' });
-      const res = await PAY.createOrder(payableLines(), method.id);
+      const res = await PAY.createOrder(payableLines(), method.id, S.customer);
       if (res.problems && res.problems.length) { stockBlocked(res.problems); return; }
       S.checkout = { orderId: res.order_id, token: res.token, status: 'instructions', amount: res.total_cents / 100, method: res.method };
       saveCheckout();
@@ -1086,6 +1103,7 @@ import * as PAY from './payment.js';
     const code = err && err.code;
     if (code === 'shop_closed') { SETTINGS.open = false; lcdIdle(); afterReceiptEdit(); renderPay('closed'); return; }
     if (code === 'bad_method') { reloadShop().then(() => { if (!METHODS.some((m) => m.id === S.method)) S.method = (METHODS[0] || {}).id; renderPay(METHODS.length ? 'select' : 'nomethods'); toast('That payment method isn’t available any more ♡'); }); return; }
+    if (code === 'bad_customer') { renderPay('select', { err: ERR_TEXT.bad_customer }); return; }
     if (code === 'bad_lines' || code === 'unknown_pin') { reloadShop().then(() => { if (S.view === 'receipt' || S.view === 'payment') afterReceiptEdit(); }); renderPay('stock'); return; }
     if (S.checkout.token) {
       if (code === 'not_found') { S.checkout = {}; saveCheckout(); renderPay('error', { msg: 'We couldn’t find that order any more. Please start again.' }); return; }
@@ -1160,6 +1178,12 @@ import * as PAY from './payment.js';
     if (e.target.dataset.act !== 'dismiss' || S.paying) return;
     if (S.payState === 'success') finishToHome();
     else if (S.payState !== 'busy') backToReceipt();
+  });
+  el.payBody.addEventListener('input', (e) => {
+    const f = e.target.closest('.cust input, .cust textarea');
+    if (!f) return;
+    S.customer[f.name] = f.value.trim();
+    store.set('klikpin_customer', S.customer);
   });
   el.payBody.addEventListener('change', (e) => {
     if (e.target.name === 'pm') { S.method = e.target.value; sfx.key(); }
