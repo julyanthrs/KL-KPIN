@@ -51,6 +51,7 @@ import * as PAY from './payment.js';
     pages: [],
     pageSize: 0,
     batch: 0,
+    size: {}, // group id -> the size (pin id) its tile is showing
     hoverZoom: false,
     muted: store.get('klikpin_muted', false),
     checkout: store.get('klikpin_checkout', {}),
@@ -143,8 +144,21 @@ import * as PAY from './payment.js';
   const PLUS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
   const catName = () => (CATEGORIES.find((c) => c.id === S.category) || { name: '' }).name;
 
+  // sizes are pins of their own; a tile stands for a base pin plus its sizes
+  const gid = (id) => { const p = byId[id]; return p && p.variantOf && byId[p.variantOf] ? p.variantOf : id; };
+  const sizesOf = (g) => PINS.filter((p) => gid(p.id) === g);
+  const shownId = (g) => {
+    if (S.size[g] && byId[S.size[g]] && gid(S.size[g]) === g) return S.size[g];
+    const all = sizesOf(g);
+    return (all.find((p) => availableStock(p.id) > 0) || all[0]).id;
+  };
+  const titleOf = (p) => (sizesOf(gid(p.id)).length > 1 ? p.title : p.name);
+  const chipsHTML = (sizes, sel) => sizes.map((v) =>
+    `<button type="button" class="sz${availableStock(v.id) <= 0 ? ' out' : ''}" data-act="size" data-id="${v.id}" aria-pressed="${v.id === sel}" aria-label="Size ${esc(v.sizeLabel)}${availableStock(v.id) <= 0 ? ', sold out' : ''}">${esc(v.sizeLabel)}${qty(v.id) ? `<b>×${qty(v.id)}</b>` : ''}</button>`).join('');
+
   function slotHTML(p) {
-    return `<div class="slot-item" data-id="${p.id}">
+    const g = gid(p.id), sizes = sizesOf(g), name = titleOf(p);
+    return `<div class="slot-item" data-id="${p.id}" data-g="${g}">
       <div class="pin-zone">
         <div class="pin-wrap">
           <button class="pin-art" data-act="zoom" aria-label="Look closer at ${p.name}">${pinSVG(p)}</button>
@@ -155,9 +169,10 @@ import * as PAY from './payment.js';
         <span class="qty-badge" aria-hidden="true"></span>
         <button class="minus-bubble" data-act="dec" aria-label="Remove one ${p.name}">−</button>
       </div>
+      ${sizes.length > 1 ? `<div class="sizes" role="group" aria-label="Size of ${esc(name)}">${chipsHTML(sizes, p.id)}</div>` : ''}
       <div class="label">
         <div class="label-info">
-          <p class="pin-name">${p.name}</p>
+          <p class="pin-name">${name}</p>
           <p class="pin-price"><span class="code" aria-hidden="true">${p.code}</span>${money(p.price)}</p>
         </div>
         <button class="add" data-act="inc" aria-label="Add ${p.name}, ${money(p.price)}">${PLUS_SVG}</button>
@@ -178,14 +193,14 @@ import * as PAY from './payment.js';
   // Splits the active category into pages that slide left/right (FR-04).
   function buildPages(keepId) {
     S.pageSize = currentPageSize();
-    const ids = PINS.filter((p) => S.category === 'all' || p.cat === S.category).map((p) => p.id);
+    const ids = PINS.filter((p) => gid(p.id) === p.id && (S.category === 'all' || p.cat === S.category)).map((p) => p.id);
     S.pages = [];
     for (let i = 0; i < ids.length; i += S.pageSize) S.pages.push(ids.slice(i, i + S.pageSize));
-    if (keepId) { const at = S.pages.findIndex((pg) => pg.includes(keepId)); S.batch = at < 0 ? 0 : at; }
+    if (keepId) { const at = S.pages.findIndex((pg) => pg.includes(gid(keepId))); S.batch = at < 0 ? 0 : at; }
     S.batch = Math.max(0, Math.min(S.batch, S.pages.length - 1));
     el.track.innerHTML = S.pages.map((pg, bi) =>
       `<div class="page" data-batch="${bi}" role="group" aria-label="${catName()}, page ${bi + 1} of ${S.pages.length}">
-        ${pg.map((id) => slotHTML(byId[id])).join('')}
+        ${pg.map((id) => slotHTML(byId[shownId(id)])).join('')}
       </div>`).join('');
     el.dots.innerHTML = S.pages.map((_, i) => `<button class="dot" data-i="${i}" aria-label="Show page ${i + 1}"></button>`).join('');
     el.win.classList.toggle('single-page', S.pages.length < 2);
@@ -207,9 +222,22 @@ import * as PAY from './payment.js';
     announce(`${catName()}: ${S.pages.flat().length} pins`);
   }
 
-  function updateSlot(id) {
-    const node = el.track.querySelector(`.slot-item[data-id="${id}"]`);
+  // switch a tile to another size (focus: keep the keyboard on that size's chip)
+  function showSize(g, id, focus) {
+    S.size[g] = id;
+    let node = el.track.querySelector(`.slot-item[data-g="${g}"]`);
     if (!node) return;
+    if (node.dataset.id !== id) node.outerHTML = slotHTML(byId[id]);
+    updateSlot(id);
+    if (focus) { const c = el.track.querySelector(`.slot-item[data-g="${g}"] .sz[data-id="${id}"]`); if (c) c.focus({ preventScroll: true }); }
+  }
+
+  function updateSlot(id) {
+    const node = el.track.querySelector(`.slot-item[data-g="${gid(id)}"]`);
+    if (!node) return;
+    const chips = node.querySelector('.sizes');
+    if (chips) chips.innerHTML = chipsHTML(sizesOf(gid(id)), node.dataset.id);
+    if (node.dataset.id !== id) return; // another size of this pin is showing: only the chips change
     const q = qty(id), max = maxFor(id);
     node.classList.toggle('in-cart', q > 0);
     node.classList.toggle('is-soldout', availableStock(id) <= 0);
@@ -264,7 +292,7 @@ import * as PAY from './payment.js';
   const pz = { id: null, src: null, slot: null, closing: false, anim: null };
   const pzEl = {
     modal: $('#pinModal'), art: $('#pzArt'), wrap: $('#pinModal .pz-art-wrap'),
-    name: $('#pzName'), code: $('#pzCode'), price: $('#pzPrice'), stock: $('#pzStock'), qty: $('#pzQty'),
+    name: $('#pzName'), sizes: $('#pzSizes'), code: $('#pzCode'), price: $('#pzPrice'), stock: $('#pzStock'), qty: $('#pzQty'),
     dec: $('#pinModal [data-act="dec"]'), inc: $('#pinModal [data-act="inc"]'),
   };
   const pageLayers = () => [el.viewport, document.querySelector('.hud-top'), document.querySelector('.hud-bottom'), el.mute];
@@ -283,7 +311,10 @@ import * as PAY from './payment.js';
     const id = pz.id;
     if (!id) return;
     const p = byId[id], q = qty(id), left = availableStock(id), max = maxFor(id);
-    pzEl.name.textContent = p.name;
+    const sizes = sizesOf(gid(id));
+    pzEl.name.textContent = titleOf(p);
+    pzEl.sizes.hidden = sizes.length < 2;
+    pzEl.sizes.innerHTML = sizes.length > 1 ? chipsHTML(sizes, id) : '';
     pzEl.code.textContent = p.code;
     pzEl.price.textContent = money(p.price);
     pzEl.stock.textContent = left <= 0 ? 'sold out' : left <= 3 ? `only ${left} left!` : `${left} in stock`;
@@ -342,8 +373,11 @@ import * as PAY from './payment.js';
       pzEl.modal.classList.remove('closing', 'is-soldout');
       pzEl.art.innerHTML = '';
       const back = pz.src;
+      const g = gid(pz.id);
       Object.assign(pz, { id: null, src: null, slot: null, closing: false, anim: null });
-      if (back && back.isConnected && S.view === 'window') back.focus({ preventScroll: true });
+      showSize(g, S.size[g] || shownId(g));
+      const art = el.track.querySelector(`.slot-item[data-g="${g}"] .pin-art`);
+      if (art && S.view === 'window') art.focus({ preventScroll: true });
     };
     const from = pz.anim ? getComputedStyle(pzEl.art).transform : 'none';
     if (pz.anim) pz.anim.cancel();
@@ -365,6 +399,7 @@ import * as PAY from './payment.js';
       if (a === 'close') closePinZoom();
       else if (a === 'inc') { const before = qty(pz.id); addPin(pz.id, 'closeup'); if (qty(pz.id) > before) pzPlay('boing'); }
       else if (a === 'dec') removePin(pz.id, 'closeup');
+      else if (a === 'size') { pz.id = b.dataset.id; S.size[gid(pz.id)] = pz.id; renderPinZoom(); sfx.key(); const c = $(`.sz[data-id="${pz.id}"]`, pzEl.sizes); if (c) c.focus({ preventScroll: true }); }
       return;
     }
     // tap the big pin: it flips around like a coin
@@ -1482,6 +1517,7 @@ import * as PAY from './payment.js';
 
   el.track.addEventListener('click', (e) => {
     const b = e.target.closest('button[data-act]');
+    if (b && b.dataset.act === 'size' && S.view === 'window') { e.stopPropagation(); /* the tile is replaced, so the click would look like one outside the window */ showSize(b.closest('.slot-item').dataset.g, b.dataset.id, true); sfx.key(); return; }
     if (b && S.view === 'window') {
       const id = b.closest('.slot-item').dataset.id;
       const act = b.dataset.act;

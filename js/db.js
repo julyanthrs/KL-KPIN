@@ -38,6 +38,9 @@ export async function loadShop() {
       id: p.id,
       cat: p.category_id,
       name: p.name,
+      sizeLabel: p.size_label || '',
+      variantOf: p.variant_of || '',
+      title: p.size_label && p.name.endsWith(` · ${p.size_label}`) ? p.name.slice(0, -(p.size_label.length + 3)) : p.name, // name without the size
       price: p.price_cents / 100,
       stock: p.stock,
       art: p.art || p.id,
