@@ -1,114 +1,68 @@
-/* KL!KPIN — payment + shop backend adapters
+/* KL!KPIN — payment adapter (manual payments)
  *
- * The PRD leaves the payment provider open (§12), so this file ships a DEMO
- * provider that behaves like a real one: create a payment intent, wait for the
- * customer, then VERIFY the result before the shop treats the order as paid
- * (FR-12: a client-side redirect alone is never proof of payment).
- *
- * To go live, replace `DemoPay` with an adapter that calls YOUR server:
- *   createIntent -> POST /api/checkout       (server creates the intent with the provider's secret key)
- *   verify       -> GET  /api/checkout/:id   (server confirms status via provider API / webhook)
- * and `ShopAPI.checkInventory` / `recordOrder` with your inventory + orders backend.
- * Card details must only ever be entered on the provider's hosted page/SDK.
+ * The customer pays the shop directly (QR / bank / cash), uploads a screenshot, and the owner approves it in the admin.
+ * Every call is a Supabase RPC (contract: docs/go-live-plan.md §1); the browser never decides an order is paid, it only
+ * trusts `order_status`. Errors come back as ProviderError(code) with the RPC's error code.
  */
-(function () {
-  'use strict';
+import { supabase } from './db.js';
 
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+export const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable: keep going in memory */ } },
+};
 
-  const store = {
-    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable: keep going in memory */ } },
-  };
+export class ProviderError extends Error {
+  constructor(code, message) { super(message || code); this.code = code; }
+}
 
-  class ProviderError extends Error {
-    constructor(code, message) { super(message || code); this.code = code; }
+const CODES = ['shop_closed', 'bad_method', 'bad_lines', 'unknown_pin', 'not_found', 'bad_state', 'proof_required', 'bad_proof'];
+const NETWORK = new ProviderError('network', 'We could not reach the shop. Check your connection and try again.');
+
+async function rpc(fn, args) {
+  let res;
+  try { res = await supabase().rpc(fn, args); } catch (e) { throw NETWORK; }
+  const { data, error } = res;
+  if (!error) return data;
+  if (CODES.includes(error.message)) throw new ProviderError(error.message);
+  // no PostgREST code = the request never got an answer
+  if (!error.code || /fetch|network/i.test(error.message)) throw NETWORK;
+  throw new ProviderError('error', 'Something went wrong. Please try again.');
+}
+
+// -> { problems: [{id, available}] } or { order_id, token, total_cents, method }
+export const createOrder = (lines, methodId) => rpc('create_order', { lines: lines.map((l) => ({ pin_id: l.id, qty: l.qty })), method_id: methodId });
+// -> { problems } | { status }
+export const submitPayment = (orderId, token, proofPath) => rpc('submit_payment', { order_id: orderId, token, proof_path: proofPath || null });
+// -> { status, reject_reason, order }
+export const orderStatus = (orderId, token) => rpc('order_status', { order_id: orderId, token });
+export const cancelOrder = (orderId, token) => rpc('cancel_order', { order_id: orderId, token });
+
+// Shrinks a screenshot to max 1280 px on the long side as JPEG 0.75 (~100-200 KB, amounts and reference numbers stay
+// readable). Throws ProviderError('bad_image') if the browser can't decode it (e.g. HEIC).
+export async function compressImage(file) {
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch (e) { throw new ProviderError('bad_image'); }
+  const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(bmp.width * k));
+  cv.height = Math.max(1, Math.round(bmp.height * k));
+  const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); // flatten transparent PNGs onto white, not black
+  g.drawImage(bmp, 0, 0, cv.width, cv.height);
+  if (bmp.close) bmp.close();
+  const blob = await new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.75));
+  if (!blob) throw new ProviderError('bad_image');
+  return blob;
+}
+
+// Insert only (no upsert); the path must start with the order id. -> path
+export async function uploadProof(orderId, blob) {
+  const path = `${orderId}/${crypto.randomUUID()}.jpg`;
+  let res;
+  try { res = await supabase().storage.from('payment-proofs').upload(path, blob, { contentType: 'image/jpeg', upsert: false }); } catch (e) { throw NETWORK; }
+  if (res.error) {
+    if (/fetch|network/i.test(res.error.message)) throw NETWORK;
+    throw new ProviderError('upload_failed', 'We could not upload your screenshot. Please try again.');
   }
-
-  let outcome = 'success'; // demo switch: success | decline | cancel | unavailable | soldout
-
-  /* ---------- simulated shop backend ---------- */
-  const ShopAPI = {
-    soldOutThisSession: new Set(),
-
-    // Re-check availability right before payment (FR-15).
-    async checkInventory(lines, catalog) {
-      await wait(600);
-      if (outcome === 'soldout' && lines.length) this.soldOutThisSession.add(lines[0].id);
-      const problems = [];
-      for (const l of lines) {
-        const avail = this.soldOutThisSession.has(l.id) ? 0 : catalog[l.id].stock;
-        if (l.qty > avail) problems.push({ id: l.id, available: avail });
-      }
-      return problems;
-    },
-
-    recordOrder(order) {
-      const orders = store.get('klikpin_orders', []);
-      orders.push(order);
-      store.set('klikpin_orders', orders);
-    },
-  };
-
-  /* ---------- demo payment provider ---------- */
-  const KEY = 'klikpin_demo_provider';
-  const db = () => store.get(KEY, { intents: {} });
-
-  const DemoPay = {
-    label: 'Demo Pay · sandbox, no real money',
-    methods: [
-      { id: 'qr', short: 'QR / e-wallet' },
-      { id: 'card', short: 'Card' },
-      { id: 'bank', short: 'Bank' },
-    ],
-
-    // Idempotent per order + amount + method, so a retry or refresh never makes a second charge.
-    async createIntent({ orderId, amount, currency, method }) {
-      await wait(750);
-      if (outcome === 'unavailable') throw new ProviderError('unavailable', 'The payment provider is not responding.');
-      const d = db();
-      let it = Object.values(d.intents).find((i) => i.orderId === orderId && i.amount === amount && i.method === method && i.status === 'requires_action');
-      if (!it) {
-        it = { id: 'pi_' + Math.random().toString(36).slice(2, 10), orderId, amount, currency, method, status: 'requires_action', created: Date.now() };
-        d.intents[it.id] = it;
-        store.set(KEY, d);
-      }
-      return { ...it };
-    },
-
-    // Stands in for the customer finishing on the provider's side (scan + approve, 3-D Secure, bank login…).
-    async customerCompletes(intentId) {
-      await wait(900);
-      const d = db();
-      const it = d.intents[intentId];
-      if (!it) throw new ProviderError('not_found', 'We could not find that payment.');
-      if (it.status === 'requires_action') {
-        it.status = outcome === 'decline' ? 'failed' : outcome === 'cancel' ? 'cancelled' : 'succeeded';
-        store.set(KEY, d);
-      }
-    },
-
-    async cancel(intentId) {
-      await wait(300);
-      const d = db();
-      const it = d.intents[intentId];
-      if (it && it.status === 'requires_action') { it.status = 'cancelled'; store.set(KEY, d); }
-    },
-
-    // In production this must ask your server, which asks the provider.
-    async verify(intentId) {
-      await wait(850);
-      const it = db().intents[intentId];
-      return it ? it.status : 'not_found';
-    },
-  };
-
-  window.KP_PAY = {
-    ShopAPI,
-    provider: DemoPay,
-    ProviderError,
-    store,
-    setOutcome(o) { outcome = o; },
-    getOutcome() { return outcome; },
-  };
-})();
+  return path;
+}

@@ -1,15 +1,18 @@
 /* KL!KPIN — interactive vending machine shop */
-(function () {
-  'use strict';
+import { pinSVG, iconSVG, face } from './pins.js';
+import { loadShop } from './db.js';
+import * as PAY from './payment.js';
 
-  const { PINS, CATEGORIES, pinSVG, iconSVG, face, MAX_PER_PIN } = window.KP_PINS;
-  const PAY = window.KP_PAY;
   const store = PAY.store;
 
   // Currency is a placeholder until the shop confirms it (PRD §12).
   const CUR = { code: 'PHP', symbol: '₱' };
   const money = (n) => CUR.symbol + Number(n).toLocaleString('en-PH');
-  const byId = Object.fromEntries(PINS.map((p) => [p.id, p]));
+  // filled by loadShop() in init(); empty until then (and if the load fails)
+  let PINS = [], CATEGORIES = [], byId = {}, METHODS = [];
+  let SETTINGS = { open: true, closed_msg: 'Taking a little break. Back soon ♡', max_per_pin: 5 };
+  // why checkout can't start right now ('' = it can)
+  const checkoutBlock = () => (!SETTINGS.open ? SETTINGS.closed_msg : !METHODS.length ? 'Payments aren’t set up yet ♡' : '');
   const $ = (s, r = document) => r.querySelector(s);
 
   const root = document.documentElement;
@@ -53,27 +56,30 @@
     checkout: store.get('klikpin_checkout', {}),
     paying: false,
     payState: null,
-    method: 'qr',
+    method: '',
+    proof: null, // { blob, url } the compressed screenshot picked for the current order
     lastOrder: null,
     camScale: 1,
+    loading: false,
+    loadError: false,
   };
 
   /* =========================================================
      CART (FR-06)
      ========================================================= */
-  const availableStock = (id) => (PAY.ShopAPI.soldOutThisSession.has(id) ? 0 : byId[id].stock);
-  const maxFor = (id) => Math.max(0, Math.min(MAX_PER_PIN, availableStock(id)));
+  const availableStock = (id) => byId[id].stock;
+  const maxFor = (id) => Math.max(0, Math.min(SETTINGS.max_per_pin, availableStock(id)));
 
-  const cart = (() => {
+  const cart = { items: {}, flagged: {} };
+  // runs after the catalog loads: drops unknown pins and clamps quantities to stock
+  function restoreCart() {
     const saved = store.get('klikpin_cart', null);
-    const items = {};
     if (saved && saved.items) {
       for (const [id, q] of Object.entries(saved.items)) {
-        if (byId[id] && q > 0) { const m = maxFor(id); if (m > 0) items[id] = Math.min(q, m); }
+        if (byId[id] && q > 0) { const m = maxFor(id); if (m > 0) cart.items[id] = Math.min(q, m); }
       }
     }
-    return { items, flagged: {} };
-  })();
+  }
   const saveCart = () => store.set('klikpin_cart', { items: cart.items });
   const saveCheckout = () => store.set('klikpin_checkout', S.checkout);
 
@@ -103,7 +109,7 @@
     const p = byId[id];
     if (availableStock(id) <= 0) { toast(`${p.name} is sold out ♡`); sfx.err(); return; }
     if (qty(id) >= maxFor(id)) {
-      const msg = qty(id) >= MAX_PER_PIN ? `Max ${MAX_PER_PIN} per design ♡` : `Only ${maxFor(id)} ${p.name} left!`;
+      const msg = qty(id) >= SETTINGS.max_per_pin ? `Max ${SETTINGS.max_per_pin} per design ♡` : `Only ${maxFor(id)} ${p.name} left!`;
       toast(msg); sfx.err(); lcdFlash('MAX!');
       return;
     }
@@ -134,7 +140,7 @@
      DISPLAY WINDOW + BATCHES (FR-04, FR-05)
      ========================================================= */
   const PLUS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
-  const catName = () => CATEGORIES.find((c) => c.id === S.category).name;
+  const catName = () => (CATEGORIES.find((c) => c.id === S.category) || { name: '' }).name;
 
   function slotHTML(p) {
     return `<div class="slot-item" data-id="${p.id}">
@@ -175,7 +181,7 @@
     S.pages = [];
     for (let i = 0; i < ids.length; i += S.pageSize) S.pages.push(ids.slice(i, i + S.pageSize));
     if (keepId) { const at = S.pages.findIndex((pg) => pg.includes(keepId)); S.batch = at < 0 ? 0 : at; }
-    S.batch = Math.min(S.batch, S.pages.length - 1);
+    S.batch = Math.max(0, Math.min(S.batch, S.pages.length - 1));
     el.track.innerHTML = S.pages.map((pg, bi) =>
       `<div class="page" data-batch="${bi}" role="group" aria-label="${catName()}, page ${bi + 1} of ${S.pages.length}">
         ${pg.map((id) => slotHTML(byId[id])).join('')}
@@ -235,7 +241,7 @@
       d.classList.toggle('on', j === S.batch);
       if (j === S.batch) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current');
     });
-    el.batchLabel.textContent = `page ${S.batch + 1}/${S.pages.length}`;
+    el.batchLabel.textContent = S.pages.length ? `page ${S.batch + 1}/${S.pages.length}` : '';
     el.prev.disabled = S.batch === 0;
     el.next.disabled = S.batch >= S.pages.length - 1;
   }
@@ -516,7 +522,7 @@
     el.lcdQty.textContent = 'QTY ' + String(t.count).padStart(2, '0');
     if (lcdTimer) return; // a flash message is showing
     el.lcd.classList.remove('flash');
-    el.lcdText.textContent = t.count ? 'SUBTOTAL' : 'READY';
+    el.lcdText.textContent = S.loading ? 'LOADING...' : S.loadError ? 'LOAD FAILED' : !SETTINGS.open ? 'SHOP CLOSED' : t.count ? 'SUBTOTAL' : 'READY';
   }
   function lcdFlash(msg, ms = 1400) {
     clearTimeout(lcdTimer);
@@ -528,52 +534,19 @@
   function qrIdle() {
     el.qr.innerHTML = '<span class="qr-title">QR CODE</span><span class="qr-ph" aria-hidden="true">♡</span><span class="qr-sub">scan at checkout</span>';
   }
-  function qrShow(seed, amount) {
-    el.qr.innerHTML = `<span class="qr-title">SCAN TO PAY</span>${qrSVG(seed)}<span class="qr-amt">${money(amount)}</span>`;
+  function qrShow(url, amount) {
+    el.qr.innerHTML = `<span class="qr-title">SCAN TO PAY</span><img class="qr" src="${url}" alt="">
+      <span class="qr-amt">${money(amount)}</span>`;
   }
   function qrThanks() {
     el.qr.innerHTML = '<span class="qr-title">QR CODE</span><div class="qr-thanks">THANK<br>YOU &lt;3</div>';
-  }
-  function qrSVG(seed) {
-    const N = 25;
-    let h = 2166136261;
-    for (const c of String(seed)) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
-    const rnd = () => { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; };
-    const corners = [[0, 0], [N - 7, 0], [0, N - 7]];
-    let rects = '';
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
-        const f = corners.find(([fx, fy]) => x >= fx && x < fx + 7 && y >= fy && y < fy + 7);
-        let dark;
-        if (f) {
-          const dx = x - f[0], dy = y - f[1];
-          dark = dx === 0 || dy === 0 || dx === 6 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4);
-        } else if (corners.some(([fx, fy]) => x >= fx - 1 && x < fx + 8 && y >= fy - 1 && y < fy + 8)) {
-          dark = false;
-        } else if (Math.abs(x - N / 2 + .5) < 4 && Math.abs(y - N / 2 + .5) < 4) {
-          dark = false; // room for the heart
-        } else {
-          dark = rnd() < 0.5;
-        }
-        if (dark) rects += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
-      }
-    }
-    return `<svg class="qr" viewBox="-2 -2 ${N + 4} ${N + 4}" role="img" aria-label="Payment QR code (demo)">
-      <rect x="-2" y="-2" width="${N + 4}" height="${N + 4}" fill="#fff"/>
-      <g fill="#2c2554" shape-rendering="crispEdges">${rects}</g>
-      <path transform="translate(${N / 2} ${N / 2 - .6}) scale(.3)" d="M0 9C-9 3-11-3-7-7c3-3 6-1 7 1 1-2 4-4 7-1 4 4 2 10-7 16z" fill="#ff6f9c" stroke="#2c2554" stroke-width="1.6"/>
-    </svg>`;
   }
 
   /* =========================================================
      RECEIPT (FR-07 → FR-10)
      ========================================================= */
-  function ensureOrderId() {
-    if (!S.checkout.orderId) {
-      S.checkout = { orderId: 'KP-' + Math.random().toString(36).slice(2, 7).toUpperCase(), status: 'open' };
-      saveCheckout();
-    }
-  }
+  // The order id comes from the server's `create_order`; until then (or once that order is dead or no longer matches the cart) show dashes.
+  const liveOrderId = () => (['instructions', 'waiting'].includes(S.checkout.status) && S.checkout.amount === totals().subtotal && S.checkout.orderId) || '';
 
   function openReceipt(source) {
     if (!lines().length) {
@@ -583,7 +556,6 @@
       el.panel.classList.remove('shake'); void el.panel.offsetWidth; el.panel.classList.add('shake');
       return;
     }
-    ensureOrderId();
     track('receipt_opened', { source, count: totals().count, total: totals().subtotal });
     setView('receipt', { focus: true });
   }
@@ -597,7 +569,7 @@
       const amt = money(l.qty * p.price);
       return `<li class="r-line${so ? ' is-flagged' : ''}">
         <div class="r-info">
-          <b class="r-name">${p.name}</b>
+          <b class="r-name">${esc(p.name)}</b>
           <span class="r-calc">${l.qty} × ${money(p.price)}</span>
           ${so ? '<em class="r-flag">sold out · not charged</em>' : flag === 'reduced' ? `<em class="r-flag">only ${l.qty} left · qty updated</em>` : ''}
         </div>
@@ -614,7 +586,7 @@
     }).join('');
     el.receipt.innerHTML = `
       <div class="r-head"><p class="r-brand">KL!KPIN</p><p class="r-sub">BUTTON PIN MACHINE</p></div>
-      <p class="r-meta"><span>ORDER #${S.checkout.orderId || '-----'}</span><span>${date} · ${time}</span></p>
+      <p class="r-meta"><span>ORDER #${liveOrderId() || '-----'}</span><span>${date} · ${time}</span></p>
       <h2 class="r-title" id="rTitle" tabindex="-1">ORDER RECEIPT</h2>
       <p class="r-columns"><span>ITEM / QTY</span><span>AMOUNT</span></p>
       ${ls.length ? `<ul class="r-lines">${items}</ul>` : '<p class="r-empty">no pins yet ♡<br>go back and add one!</p>'}
@@ -624,8 +596,9 @@
       </div>
       <div class="r-barcode" aria-hidden="true"></div>
       <p class="r-thanks">a little pin, a little joy ♡<br>THANK YOU FOR STOPPING BY!</p>
+      ${checkoutBlock() ? `<p class="r-closed" role="status">${checkoutBlock()}</p>` : ''}
       <div class="r-actions">
-        <button class="r-btn primary" data-act="confirm" ${t.count ? '' : 'disabled'}>Confirm order ♡</button>
+        <button class="r-btn primary" data-act="confirm" ${t.count && !checkoutBlock() ? '' : 'disabled'}>Confirm order ♡</button>
         <button class="r-btn" data-act="edit">← edit order</button>
       </div>`;
   }
@@ -679,17 +652,11 @@
     qr: '<svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M6 6h1v1H6zM17 6h1v1h-1zM6 17h1v1H6zM14 14h3v3h-3zM18 18h3v3h-3zM18 14h3v2h-3zM14 18h2v3h-2z" fill="currentColor" stroke="currentColor"/></svg>',
     card: '<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 10h20" stroke="currentColor" stroke-width="2.6"/><path d="M6 15h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
     bank: '<svg viewBox="0 0 24 24"><path d="M3 9l9-5 9 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M5 11v6M9.5 11v6M14.5 11v6M19 11v6M3 20h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    cash: '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+    other: '<svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.6 6.7 19.4l1.2-6L3.4 9.3l6-.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
     sound: '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="#ffd6e2" stroke="#2c2554" stroke-width="2" stroke-linejoin="round"/><path d="M16 9q2 3 0 6M18.5 6.5q4 5.5 0 11" fill="none" stroke="#2c2554" stroke-width="2" stroke-linecap="round"/></svg>',
     muted: '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="#eee" stroke="#2c2554" stroke-width="2" stroke-linejoin="round"/><path d="M16 9l5 6M21 9l-5 6" stroke="#2c2554" stroke-width="2" stroke-linecap="round"/></svg>',
   };
-  const OUTCOMES = [
-    ['success', '✓ payment succeeds'],
-    ['decline', '✕ payment declined'],
-    ['cancel', '↩ customer cancels'],
-    ['unavailable', '⚠ provider is down'],
-    ['soldout', '✿ a pin sells out'],
-  ];
-
   const DL_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg>';
   const X_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>';
   const stamp = (iso) => {
@@ -698,19 +665,38 @@
       d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
   };
 
+  // text from the shop (method names, notes, messages) goes through esc() before it reaches innerHTML
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const ERR_TEXT = {
+    bad_image: 'We couldn’t read that picture. Please send a PNG or JPG screenshot.',
+    proof_required: 'Please upload your payment screenshot first.',
+    bad_proof: 'That upload didn’t arrive properly. Please choose your screenshot again.',
+  };
+  let payPoll = null, polling = false;
+  const stopPoll = () => { clearInterval(payPoll); payPoll = null; };
+  function setProof(blob) {
+    if (S.proof) URL.revokeObjectURL(S.proof.url);
+    S.proof = blob ? { blob, url: URL.createObjectURL(blob) } : null;
+    // Upload in the background while the customer reads the screen, so "Send" only has to confirm. A failed
+    // pre-upload resolves to null and sendPayment uploads again. shortcut: a replaced picture's upload stays in storage.
+    if (blob && S.checkout.orderId) S.proof.upload = PAY.uploadProof(S.checkout.orderId, blob).catch(() => null);
+  }
+
   function renderPay(state, info = {}) {
     S.payState = state;
+    if (state !== 'waiting') stopPoll();
     const t = totals();
     const order = info.order || null;
     const items = order ? order.lines : payableLines();
     const amount = order ? order.total : t.subtotal;
-    const orderId = (order && order.orderId) || S.checkout.orderId || '';
+    const orderId = (order && order.orderId) || liveOrderId() || '-----';
     const paid = state === 'success';
-    const m = S.method;
+    const c = S.checkout, cm = c.method || {};
 
     const head = `<header class="pm-head">
         <h2 class="pm-title" id="payTitle" tabindex="-1">${paid ? 'RECEIPT' : 'PAYMENT'}</h2>
-        <p class="pm-meta">ORDER #${orderId}<br>${stamp(order && order.paidAt)}</p>
+        <p class="pm-meta">ORDER #${esc(orderId)}<br>${stamp(order && order.paidAt)}</p>
         ${paid ? '<span class="pm-paid" aria-hidden="true">PAID ✓</span>' : ''}
         ${paid
           ? `<button class="pm-icon dl" data-act="download" aria-label="Download receipt">${DL_SVG}</button>`
@@ -721,7 +707,7 @@
           ${items.map((l) => `<li class="pm-line">
             <span class="pm-pin" aria-hidden="true">${pinSVG(byId[l.id])}</span>
             <span class="pm-q">${l.qty}x</span>
-            <span class="pm-name">${l.name}</span>
+            <span class="pm-name">${esc(l.name)}</span>
             <span class="pm-amt">${money(l.qty * l.price)}</span>
           </li>`).join('')}
         </ul>
@@ -729,54 +715,79 @@
       </div>`;
 
     let body = '';
+    const copyRow = (label, v) => v ? `<div class="pm-acc-row"><span class="pm-acc-l">${label}</span><b class="pm-acc-v">${esc(v)}</b><button class="pm-copy" data-act="copy" data-v="${esc(v)}" aria-label="Copy ${label.toLowerCase()}">Copy</button></div>` : '';
     if (state === 'select') {
-      body = `<fieldset class="methods"><legend class="sr-only">Choose a payment method</legend>
-          ${PAY.provider.methods.map((x) => `<label class="method"><input type="radio" name="pm" value="${x.id}" ${x.id === m ? 'checked' : ''}><span class="m-card"><span class="m-ico">${ICON[x.id]}</span>${x.short}</span></label>`).join('')}
+      body = `<fieldset class="methods"><legend class="sr-only">Choose how you’ll pay</legend>
+          ${METHODS.map((x) => `<label class="method"><input type="radio" name="pm" value="${esc(x.id)}" ${x.id === S.method ? 'checked' : ''}><span class="m-card"><span class="m-ico">${ICON[x.kind] || ICON.other}</span>${esc(x.name)}</span></label>`).join('')}
         </fieldset>
-        <button class="pay-btn" data-act="pay">Pay ${money(t.subtotal)} ♡</button>
+        <button class="pay-btn" data-act="pay">Continue ♡</button>
         <button class="pay-link" data-act="back">← back to receipt</button>`;
     } else if (state === 'busy') {
       body = `<div class="pay-status" role="status"><span class="pay-spin" aria-hidden="true"></span><p class="ps-big">${info.msg}</p><p class="ps-small">please keep this page open ♡</p></div>`;
-    } else if (state === 'awaiting') {
-      const qr = m === 'qr';
-      body = `${qr ? `<div class="pm-qr">${qrSVG(S.checkout.intentId || S.checkout.orderId)}</div>` : ''}
-        <div class="pay-status" role="status">
-          <p class="ps-big">${qr ? 'Scan this QR to pay' : m === 'card' ? 'Finish on the secure card page' : 'Finish in your bank app'}</p>
-          <p class="ps-small">${qr ? 'Open your e-wallet or banking app, scan, then tap “I’ve paid”.' : 'In the live shop the provider’s secure page opens here — the shop never sees your card or bank login.'}</p>
+    } else if (state === 'instructions') {
+      const cash = cm.kind === 'cash';
+      body = `${c.rejectReason ? `<div class="pay-status is-bad" role="alert"><p class="ps-big">Payment not accepted</p><p class="ps-small">${esc(c.rejectReason)}</p><p class="ps-small">Please upload a new screenshot below.</p></div>` : ''}
+        <div class="pay-status">
+          <p class="ps-big">${cash ? 'Reserve your pins' : `Pay ${money(c.amount)} to ${esc(cm.name)}`}</p>
+          <p class="ps-small">${cash ? 'We’ll hold them for you. Pay at the stall.' : 'Send the exact amount, then upload a screenshot of the payment.'}</p>
         </div>
-        <div class="pay-row"><button class="pay-btn" data-act="done">I’ve paid ♡</button><button class="pay-btn ghost" data-act="cancel">Cancel</button></div>`;
+        ${cm.qr_url ? `<button class="pm-qr pm-qr-btn" data-act="zoomqr" aria-label="Enlarge the payment QR code"><img class="pm-qr-img" src="${esc(cm.qr_url)}" alt="Payment QR code for ${esc(cm.name)}"></button>` : ''}
+        ${cm.acc_name || cm.acc_no ? `<div class="pm-acc">${copyRow('Account name', cm.acc_name)}${copyRow('Account no.', cm.acc_no)}</div>` : ''}
+        ${cm.note ? `<p class="ps-small pm-note">${esc(cm.note)}</p>` : ''}
+        ${cash ? '' : `<div class="pm-upload">
+          ${info.err ? `<p class="pm-err" role="alert">${esc(info.err)}</p>` : ''}
+          ${S.proof ? `<img class="pm-proof" src="${S.proof.url}" alt="Your payment screenshot">` : ''}
+          <label class="pay-btn ghost pm-pick">${S.proof ? 'Change screenshot' : 'Upload your payment screenshot'}<input type="file" id="proofFile" accept="image/*" class="sr-only"></label>
+        </div>`}
+        <div class="pay-row"><button class="pay-btn" data-act="send" ${cash || S.proof ? '' : 'disabled'}>${cash ? 'Reserve, I’ll pay at the stall' : 'Send payment ♡'}</button><button class="pay-btn ghost" data-act="cancel">Cancel</button></div>
+        ${cash && info.err ? `<p class="pm-err" role="alert">${esc(info.err)}</p>` : ''}`;
+    } else if (state === 'waiting') {
+      body = `<div class="pay-status" role="status"><span class="pay-spin" aria-hidden="true"></span><p class="ps-big">Payment sent!</p><p class="ps-small">${cm.kind === 'cash' ? 'Your pins are reserved. The shop will confirm once you’ve paid at the stall.' : 'The shop is checking it. This page updates by itself, and you can come back to it later on this device.'}</p><p class="ps-small">Order #${esc(c.orderId)}</p></div>
+        <button class="pay-btn ghost" data-act="back">Close for now</button>`;
     } else if (state === 'resume') {
-      body = `<div class="pay-status" role="status"><p class="ps-big">You have an unfinished payment</p><p class="ps-small">Let’s check it with the provider before anything else — no double charges.</p></div>
+      body = `<div class="pay-status" role="status"><p class="ps-big">You have an unfinished order</p><p class="ps-small">Let’s check on it with the shop before anything else, so nothing gets ordered twice.</p></div>
         <div class="pay-row"><button class="pay-btn" data-act="resume">Check status</button><button class="pay-btn ghost" data-act="back">Back to receipt</button></div>`;
     } else if (paid) {
-      const meth = (PAY.provider.methods.find((x) => x.id === order.method) || {}).short || 'demo pay';
-      body = `<div class="pay-status" role="status"><span class="ok-badge" aria-hidden="true">✓</span><p class="ps-big">Payment confirmed!</p><p class="ps-small">Paid with ${meth}. Your pins drop into the PUSH door when you close this ♡</p></div>
+      body = `<div class="pay-status" role="status"><span class="ok-badge" aria-hidden="true">✓</span><p class="ps-big">Payment confirmed!</p><p class="ps-small">Paid with ${esc(order.methodName || 'the shop')}. Your pins drop into the PUSH door when you close this ♡</p></div>
         <button class="pay-btn dl-btn" data-act="download">${DL_SVG} Download receipt</button>
         <button class="pay-btn ghost" data-act="home">Back to the machine ♡</button>`;
     } else {
       const T = {
-        failed: ['Payment didn’t go through', 'Nothing was charged and your order is safe. Try again or pick another method.'],
-        cancelled: ['Payment cancelled', 'No worries! Your pins are still in your order.'],
-        unavailable: ['Payment provider is napping', 'We couldn’t reach the payment provider. Your order is saved — try again in a moment.'],
+        cancelled: ['Order cancelled', 'No worries! Your pins are still in your order.'],
+        refund: ['Paid, but a pin sold out', 'A pin sold out while you were paying. The shop will refund you.'],
+        refunded: ['Order refunded', 'The shop refunded this order. Your pins are still in your cart if you’d like to try again.'],
         stock: ['A pin just sold out', 'We updated your receipt and total. Please check it before paying.'],
+        closed: ['The shop is closed', SETTINGS.closed_msg],
+        nomethods: ['Payments aren’t set up yet', 'Please check back soon ♡'],
         error: ['Something went wrong', info.msg || 'Please try again.'],
       }[state];
-      body = `<div class="pay-status is-bad" role="alert"><p class="ps-big">${T[0]}</p><p class="ps-small">${T[1]}</p></div>
-        <div class="pay-row">${state === 'stock'
-          ? '<button class="pay-btn" data-act="back">Review receipt</button>'
+      const back = ['stock', 'refund', 'refunded', 'closed', 'nomethods'].includes(state);
+      body = `<div class="pay-status is-bad" role="alert"><p class="ps-big">${T[0]}</p><p class="ps-small">${esc(T[1])}</p></div>
+        <div class="pay-row">${back
+          ? `<button class="pay-btn" data-act="back">${state === 'stock' ? 'Review receipt' : 'Back to receipt'}</button>`
           : '<button class="pay-btn" data-act="retry">Try again</button><button class="pay-btn ghost" data-act="back">Back to receipt</button>'}</div>`;
     }
-    const foot = paid ? '' : `<div class="pay-foot">
-        <span>🔒 ${PAY.provider.label}</span>
-        <label class="pf-demo">demo: <select id="demoOutcome">${OUTCOMES.map(([v, l]) => `<option value="${v}" ${PAY.getOutcome() === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      </div>`;
+    const foot = paid ? '' : '<div class="pay-foot"><span>🔒 You pay the shop directly. The shop checks every payment by hand ♡</span></div>';
     el.payBody.innerHTML = head + receipt + `<div class="pay-main">${body}${foot}</div>`;
 
     // the machine's own QR screen mirrors the pop-up
-    if (state === 'awaiting' && m === 'qr') qrShow(S.checkout.intentId || S.checkout.orderId, t.subtotal);
+    if (state === 'instructions' && cm.qr_url) qrShow(cm.qr_url, c.amount);
     else if (paid) qrThanks();
     else if (state !== 'busy') qrIdle();
+    if (state === 'waiting') startPoll();
   }
+
+  // Waiting for the owner's approval: ask the server every 5 s, but only while the tab is visible.
+  function startPoll() {
+    stopPoll();
+    payPoll = setInterval(pollTick, 5000);
+  }
+  async function pollTick() {
+    if (document.visibilityState !== 'visible' || polling || S.paying || S.payState !== 'waiting' || S.view !== 'payment') return;
+    polling = true;
+    try { await syncStatus(); } catch (err) { /* offline for a moment: the next tick tries again */ } finally { polling = false; }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollTick(); });
 
   /* ---------- downloadable receipt (PNG drawn on a canvas) ---------- */
   function svgImage(svg) {
@@ -856,8 +867,7 @@
     text('TOTAL PAID', PAD + 36, y, '700 22px "Space Mono", monospace', INK, 'left');
     text(money(order.total), PAD + PW - 36, y + 4, '400 46px "Luckiest Guy", sans-serif', MAROON, 'right');
     y += 28; dash(y);
-    const meth = (PAY.provider.methods.find((mm) => mm.id === order.method) || {}).short || 'demo pay';
-    text(`paid with ${meth} · ${order.currency}`, cx, y + 40, '400 16px "Space Mono", monospace', GREY);
+    text(`paid with ${order.methodName || 'the shop'} · ${order.currency}`, cx, y + 40, '400 16px "Space Mono", monospace', GREY);
     // barcode
     let bx = cx - 120; const by = y + 64;
     g.fillStyle = INK;
@@ -894,29 +904,37 @@
     }
   }
 
+  // An order we must pick up again instead of creating a second one: waiting for approval (always), or
+  // pending with the same cart total (a changed cart needs a fresh order).
+  function resumableState() {
+    const c = S.checkout;
+    if (!c.token) return null;
+    if (c.status === 'waiting') return 'waiting';
+    if (c.status === 'instructions' && c.amount === totals().subtotal) return 'instructions';
+    return null;
+  }
+
   function confirmOrder() {
     const t = totals();
     if (!t.count) { toast('Add at least one pin first ♡'); return; }
-    ensureOrderId();
+    if (checkoutBlock()) { toast(checkoutBlock()); sfx.err(); lcdFlash(SETTINGS.open ? 'NO PAYMENTS' : 'SHOP CLOSED', 2200); return; }
     track('order_confirmed', { count: t.count, total: t.subtotal, orderId: S.checkout.orderId });
-    const resume = S.checkout.intentId && S.checkout.status === 'awaiting' && S.checkout.amount === t.subtotal;
-    renderPay(resume ? 'awaiting' : 'select');
+    if (!METHODS.some((m) => m.id === S.method)) S.method = METHODS[0].id;
+    renderPay(resumableState() || 'select');
     setView('payment', { focus: true });
   }
 
+  // Closing the pop-up keeps the order: confirming again picks it up. Only the Cancel button cancels it.
   function backToReceipt() {
     if (S.paying) return;
-    if (S.checkout.intentId && S.checkout.status === 'awaiting') {
-      PAY.provider.cancel(S.checkout.intentId).catch(() => {});
-      S.checkout.status = 'cancelled';
-      saveCheckout();
-    }
+    stopPoll();
     qrIdle();
     setView('receipt', { focus: true });
   }
 
   function applyStockProblems(problems) {
     problems.forEach(({ id, available }) => {
+      if (byId[id]) byId[id].stock = available; // the server knows better than our cached catalog
       if (available <= 0) cart.flagged[id] = 'soldout';
       else { cart.items[id] = available; cart.flagged[id] = 'reduced'; }
       updateSlot(id);
@@ -924,30 +942,41 @@
     saveCart();
     updateHUD();
     lcdIdle();
+    afterReceiptEdit(); // the receipt behind the pop-up must show the corrected lines and total
+  }
+
+  function stockBlocked(problems) {
+    applyStockProblems(problems);
+    renderPay('stock');
+    sfx.err();
+    track('checkout_blocked', { reason: 'stock', items: problems.map((p) => p.id) });
+  }
+
+  // Forget the current order (best effort cancel; a no-op on the server unless it is still pending).
+  function dropCheckout() {
+    if (S.checkout.token) PAY.cancelOrder(S.checkout.orderId, S.checkout.token).catch(() => {});
+    S.checkout = {}; saveCheckout();
+    setProof(null);
   }
 
   async function startPayment() {
     if (S.paying) return;
     const t = totals();
     if (!t.count) { toast('Add at least one pin first ♡'); return; }
+    if (checkoutBlock()) { renderPay(SETTINGS.open ? 'nomethods' : 'closed'); return; }
+    const again = resumableState();
+    if (again) { renderPay(again); return; } // never a second order for the same cart
+    dropCheckout();
     S.paying = true;
-    const method = S.method;
-    track('payment_started', { method, amount: t.subtotal, orderId: S.checkout.orderId });
+    const method = METHODS.find((m) => m.id === S.method) || METHODS[0];
+    track('payment_started', { method: method.id, amount: t.subtotal });
     try {
-      renderPay('busy', { msg: 'Checking your pins are still in stock…' });
-      const problems = await PAY.ShopAPI.checkInventory(payableLines(), byId);
-      if (problems.length) {
-        applyStockProblems(problems);
-        renderPay('stock');
-        sfx.err();
-        track('checkout_blocked', { reason: 'stock', items: problems.map((p) => p.id) });
-        return;
-      }
-      renderPay('busy', { msg: 'Connecting to the payment provider…' });
-      const intent = await PAY.provider.createIntent({ orderId: S.checkout.orderId, amount: t.subtotal, currency: CUR.code, method });
-      Object.assign(S.checkout, { intentId: intent.id, status: 'awaiting', amount: t.subtotal, method });
+      renderPay('busy', { msg: 'Setting up your order…' });
+      const res = await PAY.createOrder(payableLines(), method.id);
+      if (res.problems && res.problems.length) { stockBlocked(res.problems); return; }
+      S.checkout = { orderId: res.order_id, token: res.token, status: 'instructions', amount: res.total_cents / 100, method: res.method };
       saveCheckout();
-      renderPay('awaiting');
+      renderPay('instructions');
       sfx.key();
     } catch (err) {
       handlePayError(err);
@@ -956,13 +985,46 @@
     }
   }
 
-  async function customerDone() {
-    if (S.paying || !S.checkout.intentId) return;
+  // The customer picked a screenshot: shrink it now so an undecodable file (HEIC…) is caught right away.
+  async function pickProof(file) {
+    if (!file || S.paying) return;
+    try {
+      setProof(await PAY.compressImage(file));
+      S.checkout.proofPath = null; saveCheckout(); // a new picture means a new upload
+      renderPay('instructions');
+    } catch (err) {
+      renderPay('instructions', { err: ERR_TEXT[err.code] || ERR_TEXT.bad_image });
+    }
+    const f = $('[data-act="send"]', el.payBody);
+    if (f && !f.disabled) f.focus({ preventScroll: true });
+  }
+
+  // Upload the screenshot, then tell the shop. A failure after the order exists leads to "check status", never a new order.
+  async function sendPayment() {
+    const c = S.checkout;
+    if (S.paying || !c.token) return;
+    const cash = c.method && c.method.kind === 'cash';
+    if (!cash && !S.proof) { renderPay('instructions', { err: ERR_TEXT.proof_required }); return; }
     S.paying = true;
     try {
-      renderPay('busy', { msg: 'Waiting for the provider…' });
-      await PAY.provider.customerCompletes(S.checkout.intentId);
-      await verifyAndFinish();
+      renderPay('busy', { msg: cash ? 'Reserving your pins…' : 'Sending your payment…' });
+      let path = null;
+      if (!cash) {
+        path = c.proofPath || await S.proof.upload || await PAY.uploadProof(c.orderId, S.proof.blob);
+        c.proofPath = path; saveCheckout(); // if the next call fails, retrying reuses the upload
+      }
+      const res = await PAY.submitPayment(c.orderId, c.token, path);
+      if (res.problems && res.problems.length) { // cash only: the pending order has stale lines, so start over from the corrected receipt
+        dropCheckout();
+        stockBlocked(res.problems);
+        return;
+      }
+      if (res.status === 'needs_refund') return applyStatus({ status: 'needs_refund' });
+      track('payment_submitted', { orderId: c.orderId, method: c.method.id });
+      c.status = 'waiting'; c.rejectReason = ''; saveCheckout();
+      setProof(null);
+      renderPay('waiting');
+      sfx.key();
     } catch (err) {
       handlePayError(err);
     } finally {
@@ -973,22 +1035,35 @@
   async function resumePayment() {
     if (S.paying) return;
     S.paying = true;
-    try { await verifyAndFinish(); } catch (err) { handlePayError(err); } finally { S.paying = false; }
+    try { renderPay('busy', { msg: 'Checking your order…' }); await syncStatus(); } catch (err) { handlePayError(err); } finally { S.paying = false; }
   }
 
-  // Only the provider's verified status counts as paid (FR-12, FR-13).
-  async function verifyAndFinish() {
-    S.checkout.status = 'verifying';
-    saveCheckout();
-    renderPay('busy', { msg: 'Confirming your payment…' });
-    const status = await PAY.provider.verify(S.checkout.intentId);
-    if (status === 'succeeded') return onPaid();
-    if (status === 'requires_action') { S.checkout.status = 'awaiting'; saveCheckout(); renderPay('awaiting'); return; }
-    S.checkout.status = status === 'cancelled' ? 'cancelled' : 'failed';
-    saveCheckout();
+  // Ask the server where the order stands (only its answer counts as paid, FR-12) and show the matching screen.
+  async function syncStatus() {
+    const c = S.checkout;
+    const res = await PAY.orderStatus(c.orderId, c.token);
+    applyStatus(res);
+  }
+
+  function applyStatus({ status, reject_reason: reason, order }) {
+    const c = S.checkout;
+    if (status === 'paid' || status === 'packed' || status === 'collected') return onPaid(order);
+    if (status === 'submitted') {
+      if (S.payState !== 'waiting' || c.status !== 'waiting') { c.status = 'waiting'; saveCheckout(); renderPay('waiting'); }
+      return;
+    }
+    if (status === 'pending' || status === 'rejected') {
+      c.status = 'instructions'; c.rejectReason = status === 'rejected' ? (reason || 'The shop couldn’t confirm your payment.') : ''; saveCheckout();
+      if (status === 'rejected') { sfx.err(); track('payment_failed', { reason: 'rejected', orderId: c.orderId }); }
+      renderPay('instructions');
+      return;
+    }
+    // cancelled / needs_refund / refunded: this order is over
+    track(status === 'cancelled' ? 'payment_cancelled' : 'payment_failed', { by: 'shop', reason: status, orderId: c.orderId });
+    S.checkout = {}; saveCheckout(); setProof(null);
+    if (status !== 'cancelled') reloadShop();
     sfx.err();
-    if (status === 'cancelled') { track('payment_cancelled', { by: 'provider', orderId: S.checkout.orderId }); renderPay('cancelled'); }
-    else { track('payment_failed', { reason: status, orderId: S.checkout.orderId }); renderPay('failed'); }
+    renderPay(status === 'needs_refund' ? 'refund' : status);
   }
 
   async function cancelPayment() {
@@ -996,11 +1071,9 @@
     S.paying = true;
     try {
       renderPay('busy', { msg: 'Cancelling…' });
-      await PAY.provider.cancel(S.checkout.intentId);
-      S.checkout.status = 'cancelled';
-      saveCheckout();
-      track('payment_cancelled', { by: 'customer', orderId: S.checkout.orderId });
-      renderPay('cancelled');
+      const { status } = await PAY.cancelOrder(S.checkout.orderId, S.checkout.token);
+      if (status === 'cancelled') { track('payment_cancelled', { by: 'customer', orderId: S.checkout.orderId }); S.checkout = {}; saveCheckout(); setProof(null); renderPay('cancelled'); }
+      else await syncStatus(); // it moved on (e.g. already submitted): show where it really is
     } catch (err) {
       handlePayError(err);
     } finally {
@@ -1010,26 +1083,38 @@
 
   function handlePayError(err) {
     sfx.err();
-    if (err && err.code === 'unavailable') { track('payment_failed', { reason: 'provider_unavailable' }); renderPay('unavailable'); }
-    else { track('payment_failed', { reason: 'error', message: err && err.message }); renderPay('error', { msg: err && err.message }); }
+    const code = err && err.code;
+    if (code === 'shop_closed') { SETTINGS.open = false; lcdIdle(); afterReceiptEdit(); renderPay('closed'); return; }
+    if (code === 'bad_method') { reloadShop().then(() => { if (!METHODS.some((m) => m.id === S.method)) S.method = (METHODS[0] || {}).id; renderPay(METHODS.length ? 'select' : 'nomethods'); toast('That payment method isn’t available any more ♡'); }); return; }
+    if (code === 'bad_lines' || code === 'unknown_pin') { reloadShop().then(() => { if (S.view === 'receipt' || S.view === 'payment') afterReceiptEdit(); }); renderPay('stock'); return; }
+    if (S.checkout.token) {
+      if (code === 'not_found') { S.checkout = {}; saveCheckout(); renderPay('error', { msg: 'We couldn’t find that order any more. Please start again.' }); return; }
+      if (code === 'bad_state') { resumePayment(); return; } // the order moved on without us
+      if (code === 'bad_proof') { S.checkout.proofPath = null; saveCheckout(); renderPay('instructions', { err: ERR_TEXT.bad_proof }); return; }
+      if (code === 'proof_required') { renderPay('instructions', { err: ERR_TEXT.proof_required }); return; }
+      if (code === 'upload_failed') { renderPay('instructions', { err: err.message }); return; }
+      renderPay('resume'); // network or unknown: the order may have gone through, so re-check, don't re-order
+      return;
+    }
+    track('payment_failed', { reason: 'error', message: err && err.message });
+    renderPay('error', { msg: err && err.message });
   }
 
-  function onPaid() {
-    const ls = payableLines(), t = totals();
+  function onPaid(o) {
     const order = {
-      orderId: S.checkout.orderId, intentId: S.checkout.intentId, method: S.checkout.method,
-      lines: ls.map((l) => ({ id: l.id, name: l.name, qty: l.qty, price: l.price })),
-      count: t.count, total: t.subtotal, currency: CUR.code, paidAt: new Date().toISOString(),
+      orderId: o.order_id, methodName: o.method_name,
+      lines: o.lines.map((l) => ({ id: l.pin_id, name: l.name, qty: l.qty, price: l.unit_price_cents / 100 })),
+      count: o.lines.reduce((a, l) => a + l.qty, 0), total: o.total_cents / 100, currency: o.currency || CUR.code, paidAt: o.paid_at,
     };
-    PAY.ShopAPI.recordOrder(order); // keep the order record…
-    track('payment_succeeded', { orderId: order.orderId, amount: order.total, method: order.method });
-    cart.items = {}; cart.flagged = {}; saveCart(); // …then clear the completed cart
-    S.checkout = {}; saveCheckout();
+    track('payment_succeeded', { orderId: order.orderId, amount: order.total, method: order.methodName });
+    cart.items = {}; cart.flagged = {}; saveCart(); // the order now lives on the server; clear the cart
+    S.checkout = {}; saveCheckout(); setProof(null);
     S.lastOrder = order;
     refreshCartUI();
     renderPay('success', { order });
     sfx.success();
     lcdFlash('PAID! THANK YOU <3', 3200);
+    reloadShop(); // stock badges
     announce(`Payment confirmed. Order ${order.orderId}. You can download your receipt. Close it to collect your pins from the pickup door.`);
   }
 
@@ -1040,17 +1125,35 @@
     later(() => { qrIdle(); dropPins(order); }, 750);
   }
 
+  // the QR picture, big: a plain overlay so it is easy to scan from another phone
+  function zoomQr() {
+    const url = (S.checkout.method || {}).qr_url;
+    if (!url) return;
+    const z = document.createElement('div');
+    z.className = 'qr-zoom';
+    z.setAttribute('role', 'dialog'); z.setAttribute('aria-label', 'Payment QR code');
+    z.innerHTML = `<img src="${esc(url)}" alt="Payment QR code"><button class="pay-btn" data-act="qrclose">Close</button>`;
+    z.addEventListener('click', () => { z.remove(); const b = $('[data-act="zoomqr"]', el.payBody); if (b) b.focus({ preventScroll: true }); });
+    el.payModal.appendChild(z);
+    $('button', z).focus({ preventScroll: true });
+  }
+
   el.payBody.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b || b.disabled) return;
     const a = b.dataset.act;
     if (a === 'pay' || a === 'retry') startPayment();
-    else if (a === 'done') customerDone();
+    else if (a === 'send') sendPayment();
     else if (a === 'cancel') cancelPayment();
     else if (a === 'back') backToReceipt();
     else if (a === 'resume') resumePayment();
     else if (a === 'home') finishToHome();
     else if (a === 'download') downloadReceipt(S.lastOrder);
+    else if (a === 'zoomqr') zoomQr();
+    else if (a === 'copy') {
+      const done = () => { toast('Copied ♡'); sfx.key(); };
+      (navigator.clipboard ? navigator.clipboard.writeText(b.dataset.v) : Promise.reject()).then(done, () => toast('Couldn’t copy. Select the text instead ♡'));
+    }
   });
   // tapping the frosted glass closes the pop-up (when nothing is in flight)
   el.payModal.addEventListener('click', (e) => {
@@ -1060,7 +1163,7 @@
   });
   el.payBody.addEventListener('change', (e) => {
     if (e.target.name === 'pm') { S.method = e.target.value; sfx.key(); }
-    if (e.target.id === 'demoOutcome') PAY.setOutcome(e.target.value);
+    if (e.target.id === 'proofFile') pickProof(e.target.files[0]);
   });
 
   /* =========================================================
@@ -1335,6 +1438,7 @@
 
   // tap / click / keyboard entry — FR-03
   el.winHit.addEventListener('click', (e) => {
+    if (S.loadError) loadAndBuild(); // retry a failed catalog load
     clearTimeout(hoverInT);
     setView('window', { via: e.detail === 0 ? 'keyboard' : 'tap', focus: true });
     S.hoverZoom = false;
@@ -1459,7 +1563,7 @@
     if (e.key === 'Escape') {
       if (S.view === 'window') setView('home', { focus: true });
       else if (S.view === 'receipt') setView('window', { focus: true, via: 'escape' });
-      else if (S.view === 'payment' && !S.paying && ['select', 'failed', 'cancelled', 'unavailable', 'stock', 'error', 'awaiting', 'resume'].includes(S.payState)) backToReceipt();
+      else if (S.view === 'payment' && !S.paying && ['select', 'cancelled', 'stock', 'refund', 'refunded', 'closed', 'nomethods', 'error', 'instructions', 'waiting', 'resume'].includes(S.payState)) backToReceipt();
       else if (S.view === 'payment' && S.payState === 'success') finishToHome();
     }
     if (S.view === 'window' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
@@ -1507,11 +1611,54 @@
   /* =========================================================
      INIT
      ========================================================= */
-  function init() {
+  async function applyShop() {
+    const c = await loadShop();
+    PINS = c.pins; CATEGORIES = c.categories; SETTINGS = c.settings; METHODS = c.methods;
+    byId = Object.fromEntries(PINS.map((p) => [p.id, p]));
+  }
+
+  // After a payment (or a server-side change): re-fetch so stock, prices and settings are current. Keeps the current category; failure is non-fatal.
+  async function reloadShop() {
+    try {
+      await applyShop();
+      Object.keys(cart.items).forEach((id) => { if (!byId[id]) { delete cart.items[id]; delete cart.flagged[id]; } }); // a pin the shop removed
+      saveCart();
+      buildPages(); updateHUD(); lcdIdle();
+    } catch (err) { console.error(err); }
+  }
+
+  async function loadAndBuild() {
+    if (S.loading) return;
+    S.loading = true; S.loadError = false;
+    lcdIdle();
+    try {
+      await applyShop();
+      restoreCart();
+      buildTabs();
+      buildPages();
+    } catch (err) {
+      console.error(err);
+      S.loadError = true;
+      toast('Couldn’t load the pins. Tap the window to try again ♡', 5000);
+      announce('Couldn’t load the pins. Activate the window to try again.');
+    }
+    S.loading = false;
+    lcdIdle();
+    updateHUD();
+    if (S.loadError) return;
+
+    // came back mid-checkout (refresh / back button): ask the shop where the order stands before anything else
+    if (S.checkout.token && ['instructions', 'waiting'].includes(S.checkout.status) && lines().length) {
+      setTimeout(() => {
+        renderPay('resume');
+        setView('payment', { focus: true });
+      }, 700);
+    }
+  }
+
+  async function init() {
     buildStickers();
     buildKeys();
-    buildTabs();
-    buildPages();
     qrIdle();
     lcdIdle();
     drawStripes();
@@ -1524,17 +1671,9 @@
     frameView();
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('no-anim')));
     track('machine_home_viewed', { from: 'load' });
-
-    // came back mid-checkout (refresh / back button): verify before anything else
-    if (S.checkout.intentId && ['awaiting', 'verifying'].includes(S.checkout.status) && lines().length) {
-      setTimeout(() => {
-        renderPay('resume');
-        setView('payment', { focus: true });
-      }, 700);
-    }
-
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { root.classList.add('no-anim'); frameView(); requestAnimationFrame(() => root.classList.remove('no-anim')); });
+
+    await loadAndBuild();
   }
 
   init();
-})();

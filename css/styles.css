@@ -1536,9 +1536,41 @@ button.pin-art:focus-visible { outline: 5px solid var(--hot); outline-offset: 4p
   box-shadow: 0 4px 0 rgba(44, 37, 84, .2);
 }
 .pm-qr .qr { width: 150px; height: 150px; }
+.pm-qr-btn { display: block; cursor: zoom-in; font: inherit; }
+.pm-qr-btn:focus-visible { outline: 3px solid var(--hot); outline-offset: 3px; }
+.pm-qr-img { display: block; width: min(220px, 60vw); height: auto; max-height: 260px; object-fit: contain; }
+.pm-acc { display: flex; flex-direction: column; gap: 6px; }
+.pm-acc-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: 3px solid var(--ink); border-radius: 15px; background: #fff;
+}
+.pm-acc-l { flex: none; font: 600 12px var(--f-body); opacity: .7; }
+.pm-acc-v { flex: 1; min-width: 0; font: 700 16px/1.2 var(--f-mono); overflow-wrap: anywhere; text-align: right; }
+.pm-copy {
+  flex: none; height: 34px; padding: 0 12px;
+  border: 3px solid var(--ink); border-radius: 999px; background: var(--butter);
+  box-shadow: 0 3px 0 var(--ink); font: 700 14px var(--f-body); cursor: pointer;
+}
+.pm-copy:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.pm-note { text-align: center; white-space: pre-line; }
+.pm-upload { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.pm-proof { align-self: center; max-width: 100%; max-height: 200px; border: 4px solid var(--ink); border-radius: 14px; background: #fff; object-fit: contain; }
+.pm-pick { cursor: pointer; font-size: 16px; text-align: center; }
+.pm-pick:focus-within { outline: 3px solid var(--hot); outline-offset: 2px; }
+.pm-err { margin: 0; color: var(--maroon); font: 700 14px/1.3 var(--f-body); text-align: center; }
+.r-closed { margin: 8px 0 0; color: var(--maroon); font: 700 9px/1.4 var(--f-mono); text-align: center; }
+.qr-zoom {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding: 16px;
+  background: rgba(44, 37, 84, .78);
+}
+.qr-zoom img { max-width: min(92vw, 520px); max-height: 72vh; border: 5px solid var(--ink); border-radius: 18px; background: #fff; }
+.qr-zoom .pay-btn { padding: 0 28px; }
 .methods {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   gap: 9px;
   margin: 0; padding: 0;
   border: 0;
@@ -1623,17 +1655,6 @@ button.pin-art:focus-visible { outline: 5px solid var(--hot); outline-offset: 4p
   border-top: 3px dashed rgba(44, 37, 84, .2);
   font: 500 11px var(--f-body);
 }
-.pf-demo { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.pf-demo select {
-  max-width: 150px;
-  padding: 2px 3px;
-  border: 2px solid var(--ink);
-  border-radius: 8px;
-  background: var(--butter);
-  color: var(--ink);
-  font: 600 11px var(--f-body);
-}
-
 /* =========================================================
    PIN CLOSE-UP (the pin flies out of the window, big, over frosted glass)
    ========================================================= */

@@ -1,7 +1,4 @@
 /* KL!KPIN — pin catalog + hand-drawn SVG pin art */
-(function () {
-  'use strict';
-
   const INK = '#3b2a4a';
   const BLUSH = '#ff8fab';
   const S = `stroke="${INK}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"`;
@@ -226,40 +223,29 @@
   };
 
   /* ---------- catalog ---------- */
-  // Prices/stock are placeholders until the shop confirms its catalog (PRD §12 "not yet specified").
-  const CATEGORIES = [
-    { id: 'all', name: 'All', icon: 'star' },
-    { id: 'animals', name: 'Animals', icon: 'cat' },
-    { id: 'food', name: 'Food', icon: 'strawberry' },
-    { id: 'nature', name: 'Nature', icon: 'daisy' },
-    { id: 'cute', name: 'Cute Stuff', icon: 'ribbon' },
-    { id: 'special', name: 'Special', icon: 'sparkle' },
-  ];
-
-  // Order here = order in the "All" tab.
-  const PINS = [
-    { id: 'puppy', cat: 'animals', name: 'Puppy', price: 60, stock: 20, bg: '#fff4d6', pat: ['dots', '#ffe6a8'] },
-    { id: 'cat', cat: 'animals', name: 'Sleepy Cat', price: 60, stock: 14, bg: '#e3f2ff', pat: ['dots', '#c6e3ff'] },
-    { id: 'strawberry', cat: 'food', name: 'Strawberry', price: 55, stock: 24, bg: '#ffe3ea', pat: ['dots', '#ffc6d5'] },
-    { id: 'moon', cat: 'nature', name: 'Moonbeam', price: 55, stock: 11, bg: '#4c5ba8', pat: ['night', '#ffffff'] },
-    { id: 'daisy', cat: 'nature', name: 'Daisy', price: 45, stock: 28, bg: '#dff7e8', pat: ['dots', '#c3edd3'] },
-    { id: 'ribbon', cat: 'cute', name: 'Ribbon', price: 50, stock: 18, bg: '#ffe8f2', pat: ['checks', '#ffd3e6'] },
-    { id: 'cloud', cat: 'nature', name: 'Cloud Nap', price: 50, stock: 17, bg: '#cfe9ff', pat: ['dots', '#b6dcff'] },
-    { id: 'bear', cat: 'animals', name: 'Honey Bear', price: 60, stock: 10, bg: '#fff1d9', pat: ['stripes', '#ffe3b3'] },
-    { id: 'star', cat: 'special', name: 'Lucky Star', price: 50, stock: 25, bg: '#ece6ff', pat: ['dots', '#d9ceff'] },
-    { id: 'heart', cat: 'cute', name: 'Heart', price: 45, stock: 30, bg: '#fff6c9', pat: ['rays', '#ffeb98'] },
-    { id: 'bunny', cat: 'animals', name: 'Bun Bun', price: 60, stock: 16, bg: '#ffe3f0', pat: ['checks', '#ffcde3'] },
-    { id: 'cherry', cat: 'food', name: 'Cherry Duo', price: 50, stock: 18, bg: '#fff0d6', pat: ['checks', '#ffe2ad'] },
-    { id: 'sun', cat: 'nature', name: 'Sunny', price: 55, stock: 13, bg: '#fff3c4', pat: ['rays', '#ffe68e'] },
-    { id: 'ghost', cat: 'cute', name: 'Ghostie', price: 65, stock: 2, bg: '#e8e0ff', pat: ['stripes', '#d8ccff'] },
-    { id: 'boba', cat: 'food', name: 'Boba', price: 60, stock: 20, bg: '#e3f6ea', pat: ['stripes', '#ccecd7'] },
-    { id: 'frog', cat: 'animals', name: 'Froggy', price: 55, stock: 22, bg: '#fff7d6', pat: ['dots', '#ffeaa3'] },
-    { id: 'peach', cat: 'food', name: 'Peachy', price: 50, stock: 15, bg: '#fff1e6', pat: ['dots', '#ffdcc4'] },
-    { id: 'rainbow', cat: 'special', name: 'Rainbow', price: 70, stock: 0, bg: '#fff0f5', pat: ['dots', '#ffdbe8'] },
-    { id: 'duck', cat: 'animals', name: 'Ducky', price: 55, stock: 19, bg: '#dff5ff', pat: ['rays', '#c8ecff'] },
-    { id: 'donut', cat: 'food', name: 'Donut', price: 55, stock: 12, bg: '#e8e4ff', pat: ['dots', '#d5ccff'] },
-  ];
-  PINS.forEach((p, i) => { p.code = String.fromCharCode(65 + Math.floor(i / 5)) + ((i % 5) + 1); });
+  // Fallback visuals, keyed by DB pin id; the DB columns bg/pat/pat_color win when set (js/db.js).
+  export const VISUALS = {
+    puppy: { bg: '#fff4d6', pat: ['dots', '#ffe6a8'] },
+    cat: { bg: '#e3f2ff', pat: ['dots', '#c6e3ff'] },
+    strawberry: { bg: '#ffe3ea', pat: ['dots', '#ffc6d5'] },
+    moon: { bg: '#4c5ba8', pat: ['night', '#ffffff'] },
+    daisy: { bg: '#dff7e8', pat: ['dots', '#c3edd3'] },
+    ribbon: { bg: '#ffe8f2', pat: ['checks', '#ffd3e6'] },
+    cloud: { bg: '#cfe9ff', pat: ['dots', '#b6dcff'] },
+    bear: { bg: '#fff1d9', pat: ['stripes', '#ffe3b3'] },
+    star: { bg: '#ece6ff', pat: ['dots', '#d9ceff'] },
+    heart: { bg: '#fff6c9', pat: ['rays', '#ffeb98'] },
+    bunny: { bg: '#ffe3f0', pat: ['checks', '#ffcde3'] },
+    cherry: { bg: '#fff0d6', pat: ['checks', '#ffe2ad'] },
+    sun: { bg: '#fff3c4', pat: ['rays', '#ffe68e'] },
+    ghost: { bg: '#e8e0ff', pat: ['stripes', '#d8ccff'] },
+    boba: { bg: '#e3f6ea', pat: ['stripes', '#ccecd7'] },
+    frog: { bg: '#fff7d6', pat: ['dots', '#ffeaa3'] },
+    peach: { bg: '#fff1e6', pat: ['dots', '#ffdcc4'] },
+    rainbow: { bg: '#fff0f5', pat: ['dots', '#ffdbe8'] },
+    duck: { bg: '#dff5ff', pat: ['rays', '#c8ecff'] },
+    donut: { bg: '#e8e4ff', pat: ['dots', '#d5ccff'] },
+  };
 
   // Small icon (tabs) — the pin art without the badge frame.
   function iconSVG(id) {
@@ -278,12 +264,11 @@
         <linearGradient id="${u}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e4d9f5"/></linearGradient>
       </defs>
       <circle cx="50" cy="50" r="47" fill="url(#${u}r)" stroke="${INK}" stroke-width="2.6"/>
-      <g clip-path="url(#${u}c)"><rect width="100" height="100" fill="${p.bg}"/>${BG[p.pat[0]](p.pat[1])}${ART[p.id](u, p)}</g>
+      <g clip-path="url(#${u}c)"><rect width="100" height="100" fill="${p.bg}"/>${(BG[p.pat[0]] || BG.dots)(p.pat[1])}${p.img ? `<image href="${p.img}" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice"/>` : ART[p.art || p.id](u, p)}</g>
       <circle cx="50" cy="50" r="42" fill="none" stroke="${INK}" stroke-width="1.6"/>
       <circle cx="50" cy="50" r="42" fill="url(#${u}g)"/>
       <path d="M19 40A32 32 0 0 1 37 16" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" opacity=".85"/>
     </svg>`;
   }
 
-  window.KP_PINS = { PINS, CATEGORIES, pinSVG, iconSVG, face, MAX_PER_PIN: 5 };
-})();
+export { ART, pinSVG, iconSVG, face };
