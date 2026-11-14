@@ -678,6 +678,9 @@ import * as PAY from './payment.js';
   function setProof(blob) {
     if (S.proof) URL.revokeObjectURL(S.proof.url);
     S.proof = blob ? { blob, url: URL.createObjectURL(blob) } : null;
+    // Upload in the background while the customer reads the screen, so "Send" only has to confirm. A failed
+    // pre-upload resolves to null and sendPayment uploads again. shortcut: a replaced picture's upload stays in storage.
+    if (blob && S.checkout.orderId) S.proof.upload = PAY.uploadProof(S.checkout.orderId, blob).catch(() => null);
   }
 
   function renderPay(state, info = {}) {
@@ -1007,7 +1010,7 @@ import * as PAY from './payment.js';
       renderPay('busy', { msg: cash ? 'Reserving your pins…' : 'Sending your payment…' });
       let path = null;
       if (!cash) {
-        path = c.proofPath || await PAY.uploadProof(c.orderId, S.proof.blob);
+        path = c.proofPath || await S.proof.upload || await PAY.uploadProof(c.orderId, S.proof.blob);
         c.proofPath = path; saveCheckout(); // if the next call fails, retrying reuses the upload
       }
       const res = await PAY.submitPayment(c.orderId, c.token, path);

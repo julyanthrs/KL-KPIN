@@ -37,11 +37,12 @@ export const submitPayment = (orderId, token, proofPath) => rpc('submit_payment'
 export const orderStatus = (orderId, token) => rpc('order_status', { order_id: orderId, token });
 export const cancelOrder = (orderId, token) => rpc('cancel_order', { order_id: orderId, token });
 
-// Shrinks a screenshot to max 1600 px on the long side as JPEG 0.85. Throws ProviderError('bad_image') if the browser can't decode it (e.g. HEIC).
+// Shrinks a screenshot to max 1280 px on the long side as JPEG 0.75 (~100-200 KB, amounts and reference numbers stay
+// readable). Throws ProviderError('bad_image') if the browser can't decode it (e.g. HEIC).
 export async function compressImage(file) {
   let bmp;
   try { bmp = await createImageBitmap(file); } catch (e) { throw new ProviderError('bad_image'); }
-  const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
   const cv = document.createElement('canvas');
   cv.width = Math.max(1, Math.round(bmp.width * k));
   cv.height = Math.max(1, Math.round(bmp.height * k));
@@ -49,7 +50,7 @@ export async function compressImage(file) {
   g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); // flatten transparent PNGs onto white, not black
   g.drawImage(bmp, 0, 0, cv.width, cv.height);
   if (bmp.close) bmp.close();
-  const blob = await new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.85));
+  const blob = await new Promise((res) => cv.toBlob(res, 'image/jpeg', 0.75));
   if (!blob) throw new ProviderError('bad_image');
   return blob;
 }
