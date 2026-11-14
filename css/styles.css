@@ -1593,6 +1593,15 @@ button.pin-art:focus-visible { outline: 5px solid var(--hot); outline-offset: 4p
 .m-ico svg { width: 26px; height: 26px; display: block; }
 .method input:checked + .m-card { background: var(--pink); box-shadow: 0 4px 0 var(--ink); transform: translateY(-2px); }
 .method input:focus-visible + .m-card { outline: 3px solid var(--hot); outline-offset: 2px; }
+.cust { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }
+.cust-h { padding: 0; margin-bottom: 6px; font: 700 15px/1 var(--f-body); }
+.cust label { display: flex; flex-direction: column; gap: 3px; font: 600 14px/1.1 var(--f-body); }
+.cust input, .cust textarea {
+  width: 100%; padding: 9px 12px; resize: none;
+  border: 3px solid var(--ink); border-radius: 12px; background: var(--paper);
+  color: var(--ink); font: 500 16px/1.25 var(--f-body); /* 16px keeps iOS from zooming on focus */
+}
+.cust input:focus-visible, .cust textarea:focus-visible { outline: 3px solid var(--hot); outline-offset: 2px; }
 .pay-btn {
   height: 50px;
   padding: 0 16px;

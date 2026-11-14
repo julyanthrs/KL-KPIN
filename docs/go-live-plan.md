@@ -38,7 +38,7 @@ Add columns: `art text` (built-in art key from pins.js `ART`, null = use `id`), 
 ### Customer RPCs — `security definer`, `set search_path = public`, granted to `anon, authenticated`
 Errors are `raise exception '<code>'` with these codes as the message (the client maps them): `shop_closed`, `bad_method`, `bad_lines`, `unknown_pin`, `not_found`, `bad_state`, `proof_required`, `bad_proof`.
 
-1. `create_order(lines jsonb, method_id text) returns jsonb`
+1. `create_order(lines jsonb, method_id text, cust_name text, cust_phone text, cust_address text) returns jsonb` (name 2-80 chars, phone 7-15 digits, address 8-300 chars, else `bad_customer`; stored in `orders.cust_*`, added by migration 20261114120000)
    - `settings.open` false → `shop_closed`. Method missing/inactive → `bad_method`.
    - `lines` = `[{pin_id, qty}]`, same validation as today (non-empty array, integer qty, no duplicates) but qty max = `settings.max_per_pin` → `bad_lines`; unknown/inactive/removed pin → `unknown_pin`.
    - Stock short → `{ "problems": [{id, available}] }` (no order created). Stock is **not** taken here.
@@ -73,7 +73,7 @@ Errors are `raise exception '<code>'` with these codes as the message (the clien
 - `payment.js` → thin client over `supabase().rpc(...)` and `supabase().storage.from('payment-proofs').upload(...)`. Map RPC error codes to `ProviderError(code)`; network failure → `ProviderError('network')`.
 - Payment modal flow (reuse `renderPay`, persisted `S.checkout`, resume-after-refresh):
   1. **select**: list the active methods from the DB (name + kind icon, in `sort` order).
-  2. `create_order` → **instructions**: order number, total, the method's QR picture (big, tappable to enlarge) and/or account name + number with a Copy button, the note, then "Upload your payment screenshot" (file input `accept="image/*"`, preview, change). Compress in the browser to max 1600 px long side, JPEG 0.85, upload to `payment-proofs/<order_id>/<random>.jpg`, then `submit_payment`. Cash kind: no upload; button "Reserve, I'll pay at the stall" calls `submit_payment` without a proof. Cancel → `cancel_order`.
+  2. `create_order` → **instructions**: order number, total, the method's QR picture (big, tappable to enlarge) and/or account name + number with a Copy button, the note, then "Upload your payment screenshot" (file input `accept="image/*"`, preview, change). Compress in the browser to max 1280 px long side, JPEG 0.75, upload to `payment-proofs/<order_id>/<random>.jpg`, then `submit_payment`. Cash kind: no upload; button "Reserve, I'll pay at the stall" calls `submit_payment` without a proof. Cancel → `cancel_order`.
   3. **waiting**: "Payment sent! The shop is checking it." with the order number; poll `order_status` every 5 s while the page is visible (stop when hidden, resume on visibility); the customer may close the page and come back on the same browser.
   4. `paid` → existing `onPaid` (pins drop, receipt). `rejected` → show `reject_reason` and let them upload again (back to step 2 for the same order). `needs_refund` → "Sorry, a pin sold out while you were paying. The shop will refund you." `cancelled` → back to the receipt.
 - Remove: the demo-outcome dropdown (`#demoOutcome`) and `setOutcome/getOutcome`, the "Demo Pay · sandbox" label, the old `create/complete/verify` calls.
