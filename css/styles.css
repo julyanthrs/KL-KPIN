@@ -974,7 +974,11 @@ button.pin-art:focus-visible { outline: 5px solid var(--hot); outline-offset: 4p
 /* size chips: one tile per pin, the chips pick which size the tile shows */
 .sizes { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
 .sizes[hidden] { display: none; }
-.slot-item .sizes { margin: 6px 6px -6px; }
+.slot-item .sizes { margin: 2px 6px 0; }
+/* the chips take a row of the tile: a smaller pin and a tighter label keep the price inside */
+.slot-item.sized .pin-wrap { width: calc(var(--pin) - 34px); height: calc(var(--pin) - 34px); }
+.slot-item.sized .pin-zone { padding-top: 4px; }
+.slot-item.sized .label { margin-top: 8px; }
 .sz {
   min-width: 30px; padding: 3px 8px 2px;
   border: 2.5px solid var(--ink); border-radius: 999px;

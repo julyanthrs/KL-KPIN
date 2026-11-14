@@ -158,7 +158,7 @@ import * as PAY from './payment.js';
 
   function slotHTML(p) {
     const g = gid(p.id), sizes = sizesOf(g), name = titleOf(p);
-    return `<div class="slot-item" data-id="${p.id}" data-g="${g}">
+    return `<div class="slot-item${sizes.length > 1 ? ' sized' : ''}" data-id="${p.id}" data-g="${g}">
       <div class="pin-zone">
         <div class="pin-wrap">
           <button class="pin-art" data-act="zoom" aria-label="Look closer at ${p.name}">${pinSVG(p)}</button>
