@@ -34,7 +34,7 @@ import * as PAY from './payment.js';
   /* ---------- elements ---------- */
   const el = {
     camera: $('#camera'), machine: $('#machine'), viewport: $('#viewport'),
-    win: $('#window'), winInner: $('#windowInner'), winHit: $('#windowHit'), tabs: $('#tabs'),
+    win: $('#window'), winInner: $('#windowInner'), winHit: $('#windowHit'), closedSign: $('#closedSign'), closedMsg: $('#closedMsg'), tabs: $('#tabs'),
     bv: $('#batchViewport'), track: $('#batchTrack'), dots: $('#dots'), batchLabel: $('#batchLabel'),
     prev: $('#prevBatch'), next: $('#nextBatch'),
     panel: $('#panel'), lcd: $('#lcd'), lcdText: $('#lcdText'), lcdTotal: $('#lcdTotal'), lcdQty: $('#lcdQty'), keys: $('#keys'),
@@ -521,9 +521,21 @@ import * as PAY from './payment.js';
     el.lcdTotal.textContent = amt;
     el.lcdTotal.dataset.ghost = amt.replace(/\d/g, '8'); // unlit "8" segments behind the digits
     el.lcdQty.textContent = 'QTY ' + String(t.count).padStart(2, '0');
+    applyClosed();
     if (lcdTimer) return; // a flash message is showing
     el.lcd.classList.remove('flash');
     el.lcdText.textContent = S.loading ? 'LOADING...' : S.loadError ? 'LOAD FAILED' : !SETTINGS.open ? 'SHOP CLOSED' : t.count ? 'SUBTOTAL' : 'READY';
+  }
+  // shop closed in the admin: the machine shows a sign and the window / receipt button can't be used
+  function applyClosed() {
+    const closed = !SETTINGS.open && !S.loading && !S.loadError;
+    el.machine.classList.toggle('closed', closed);
+    el.closedSign.hidden = !closed;
+    el.closedMsg.textContent = SETTINGS.closed_msg || '';
+    el.winHit.disabled = closed;
+    el.receiptKey.disabled = closed;
+    el.chipReceipt.disabled = closed;
+    if (closed && (S.view === 'window' || S.view === 'receipt')) setView('home');
   }
   function lcdFlash(msg, ms = 1400) {
     clearTimeout(lcdTimer);
@@ -722,7 +734,7 @@ import * as PAY from './payment.js';
       body = `<fieldset class="methods"><legend class="sr-only">Choose how you’ll pay</legend>
           ${METHODS.map((x) => `<label class="method"><input type="radio" name="pm" value="${esc(x.id)}" ${x.id === S.method ? 'checked' : ''}><span class="m-card"><span class="m-ico">${ICON[x.kind] || ICON.other}</span>${esc(x.name)}</span></label>`).join('')}
         </fieldset>
-        <fieldset class="cust"><legend class="cust-h">Who is this for?</legend>
+        <fieldset class="cust"><legend class="cust-h">Complete Details</legend>
           <label>Full name<input id="cName" name="name" autocomplete="name" maxlength="80" required value="${esc(S.customer.name)}"></label>
           <label>Phone number<input id="cPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" required value="${esc(S.customer.phone)}"></label>
           <label>Address<textarea id="cAddr" name="address" autocomplete="street-address" rows="3" maxlength="300" required>${esc(S.customer.address)}</textarea></label>
